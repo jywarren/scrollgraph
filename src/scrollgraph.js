@@ -24,11 +24,9 @@ Phase 2
 * try to distort image using webgl-distort before placement
 * place using upper-left corner
 
-
-
 */
 
-function Scrollgraph(options) {
+Scrollgraph = function Scrollgraph(options) {
 
   var ctx;
 
@@ -41,9 +39,10 @@ function Scrollgraph(options) {
   var img = new Image();
   img.onload = function loadImage() {
     ctx.drawImage(img, 0, 0, options.width, options.height, 0, 0, options.width, options.height);
-console.log(img);
   }
   img.src = "images/forms.png";
+
+  setupMatcher(options);
 
   function createCanvas(canvasOptions) {
     var _ctx, canvas, height, width;
@@ -57,18 +56,28 @@ console.log(img);
     return _ctx;
   }
 
-  function getCanvasAsImage(options) {
+  // currently as imageData
+  function getCanvasAsImage() {
     return ctx.getImageData(0, 0, options.width || 1000, options.height || 1000);
   }
 
   function setupMatcher(matcherOptions) {
-    var Matcher = require('matcher-core');
+    //var Matcher = require('matcher-core');
+    require('../node_modules/matcher-core/src/orb.core.js');
     var matcher = new Matcher(matcherOptions.path1, matcherOptions.path2,
       async function (r) { // r here is the passed utils object
         res = await r;
         console.log(res.points);
         console.log(res.matched_points);
     });
+
+Promise.resolve(matcher).then(function(result) {
+    console.log(result, result.matched_points, Promise.resolve(result).then(function(res) { console.log('res',res);}), matcher);
+});
+
   }
 
+  return {
+    getCanvasAsImage: getCanvasAsImage
+  }
 }
