@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en" manifest="index.manifest">
+  <head>
+    
+    <title>Scrollgraph</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link href="node_modules/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="node_modules/font-awesome/css/font-awesome.min.css" rel="stylesheet">
+    <link href="dist/scrollgraph.css" rel="stylesheet">
+
+    <script src="node_modules/jquery/dist/jquery.min.js"></script>
+    <script src="node_modules/bootstrap/dist/js/bootstrap.min.js"></script>
+    <script src="node_modules/matcher-core/orb.core.min.js"></script>
+
+    <script src="dist/scrollgraph.js"></script>
+
+  </head>
+
+  <body>
+
+    <img id="img1" src="images/forms.png" />
+    <img id="img2" src="images/contrast.png" />
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+
+      Scrollgraph({
+        height: 1000,
+        width: 1000
+      });
+
+    </script>
+
+  </body>
+</html>
