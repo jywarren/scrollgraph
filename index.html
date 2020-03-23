@@ -12,29 +12,28 @@
 
     <script src="node_modules/jquery/dist/jquery.min.js"></script>
     <script src="node_modules/bootstrap/dist/js/bootstrap.min.js"></script>
-    <script src="node_modules/matcher-core/orb.core.min.js"></script>
 
     <script src="dist/scrollgraph.js"></script>
-
   </head>
 
   <body>
 
-    <img id="img1" src="images/forms.png" />
-    <img id="img2" src="images/contrast.png" />
+    <img id="img1" width="200px" src="images/ceresA-med.jpg" />
+    <img id="img2" width="200px" src="images/ceresB-med.jpg" />
 
     <canvas id="canvas"></canvas>
 
-    <script>
-
-      var scrollgraph = Scrollgraph({
-        path1: "images/forms.png",
-        path2: "images/contrast.png",
-        height: 1000,
-        width: 1000
-      });
-
-    </script>
-
   </body>
+
+    <script src="node_modules/matcher-core/orb.core.min.js"></script>
+  <script>
+
+    var scrollgraph = Scrollgraph({
+      path1: "images/ceresA-med.jpg",
+      path2: "images/ceresB-med.jpg",
+      height: 1000,
+      width: 1000
+    });
+
+  </script>
 </html>
