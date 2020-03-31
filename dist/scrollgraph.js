@@ -1108,60 +1108,17 @@ process.chdir = function (dir) {
 process.umask = function() { return 0; };
 
 },{}],12:[function(require,module,exports){
-/*
-
-https://github.com/publiclab/matcher-core
-Reference implementation: https://github.com/publiclab/Leaflet.DistortableImage/pull/312
-
-* create a canvas
-* be able to insert an image onto it
-* store previous image in a stack, n deep, and x,y location
-* be able to fetch current canvas as an image (as a fallback)
-* use Matcher to find matches
-
-Setup
-
-X get canvas working with dummy image
-X get matcher working with 2 images
-
-{
-confidence: {c1: 306, c2: 309}
-x1: 237
-y1: 353
-x2: 339
-y2: 277
-population: 10
-}
-
-Phase 1
-
-* place image at x,y relative to orig image
-  * idea 1: 
-    * find best 2 matches (see sorting by confidence here: https://github.com/publiclab/Leaflet.DistortableImage/pull/312/files#diff-edfdd198986795d35dcb901669e98a76R71-R73)
-    * calculate rotation change
-    * calculate scale change
-    * simple version: rotate and scale each point with regard to the best matched point pair: https://github.com/publiclab/Leaflet.DistortableImage/pull/312/files#diff-e34c8bba204508e1ca7a769871a3800eR81-R99
-    * use rotation and scale change for a matrix transform?
-	* this is called a homography matrix and a homography transform; example here: https://www.mathworks.com/matlabcentral/answers/26141-homography-matrix
-* don't yet try to use whole canvas, just use last image
-* don't rotate or anything yet
-
-Phase 2
-
-* try to distort image using webgl-distort before placement
-* place using upper-left corner
-
-*/
-
 Scrollgraph = function Scrollgraph(options) {
-
-  var ctx;
-
-  ctx = createCanvas(options);
+  options.sourceWidth = options.sourceWidth || 800;
+  options.sourceHeight = options.sourceHeight || 600;
+  var ctx = createCanvas(options);
 
   // background
   ctx.fillStyle = '#eee';
   ctx.fillRect(0, 0, options.width, options.height);
+
+//  ctx.moveTo(-options.width/2, -options.height/2);
+  drawImage(options.path1);
 
   setupMatcher(options);
 
@@ -1174,32 +1131,75 @@ Scrollgraph = function Scrollgraph(options) {
     height = canvasOptions.height || 1000;
     canvas.width = width;
     canvas.height = height;
+    $(canvas).css('height', $(canvas).width() + 'px');
     return _ctx;
   }
 
-  function drawImage(src) {
+  function drawImage(src, offset) {
     var img = new Image();
+    offset = offset || {x: 0, y: 0};
+    // transfrom offsets from 640x480 space to native image dimensions space
+//offset.x *= 480/640
+// need less x
+    offset.x = (offset.x/640) * options.sourceWidth;
+// need more y
+    offset.y = (offset.y/480) * options.sourceHeight;
+//console.log('transformed offest', offset);
     img.onload = function loadImage() {
-      ctx.drawImage(img, 0, 0, options.width, options.height, 0, 0, options.width, options.height);
+      ctx.globalAlpha = 0.5;
+console.log(img.width, img.height, img.src, offset);
+      ctx.drawImage(
+        img,
+        0, 0,
+        img.width,
+        img.height,
+        offset.x,
+        offset.y,
+        img.width,
+        img.height
+      );
     }
     img.src = src;
-  }
-
-  // currently as imageData
-  function getCanvasAsImage() {
-    return ctx.getImageData(0, 0, options.width || 1000, options.height || 1000);
   }
 
   function setupMatcher(matcherOptions) {
     //var Matcher = require('matcher-core');
     require('../node_modules/matcher-core/src/orb.core.js');
     var matcher = new Matcher(matcherOptions.path1, matcherOptions.path2,
-      async function(q) {
+      async function onMatches(q) {
         var res = await q;
         console.log("points found", res);
-        // function drawImage(src)
-        // res.points;
-        // res.matched_points;
+        var points = sortByConfidence(res.matched_points);
+        var angle = findAngle(points[0], points[1]);
+        // this offset will only work for translation, not rotation
+        var offset = getOffset(points[0]);
+        var offset2 = getOffset(points[0]);
+console.log(offset, offset2);
+        offset.x = (offset.x + offset2.x) / 2;
+        offset.y = (offset.y + offset2.y) / 2;
+
+        drawImage(matcherOptions.path2, offset);
+
+setTimeout(function() {
+// let's draw our pairs
+ctx.fillStyle = 'red';
+ctx.strokeStyle = 'red';
+ctx.font = '14px sans';
+ctx.globalAlpha = 1;
+points.forEach(function(p, i) {
+    p.x1 = p.x1/640 * options.sourceWidth;
+    p.y1 = p.y1/480 * options.sourceHeight;
+    p.x2 = p.x2/640 * options.sourceWidth;
+    p.y2 = p.y2/480 * options.sourceHeight;
+    ctx.beginPath();
+    ctx.moveTo(p.x1, p.y1);
+    ctx.lineTo(p.x1 + p.x1 - p.x2, p.y1 + p.y1 - p.y2);
+    ctx.stroke();
+    ctx.fillText(i+'/'+p.confidence.c2, p.x1, p.y1);
+    ctx.fill();
+});
+},1500)
+
       },
       {
         browser: true,
@@ -1210,6 +1210,31 @@ Scrollgraph = function Scrollgraph(options) {
         }
       }
     );
+  }
+
+  function sortByConfidence(points) {
+    return points.sort(function(a, b) {
+      if (a.confidence.c1 + a.confidence.c2 < b.confidence.c1 + b.confidence.c2) return 1;
+      else return -1;
+    });
+  }
+
+  function getOffset(points) {
+    return {
+      x: points.x1 - points.x2,
+      y: points.y1 - points.y2,
+    };
+  }
+
+  // in degrees; alternatively var angleRadians = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+  // not doing this yet as we're only doing translation
+  function findAngle(p1, p2) {
+    return Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;    
+  }
+
+  // currently as imageData
+  function getCanvasAsImage() {
+    return ctx.getImageData(0, 0, options.width || 1000, options.height || 1000);
   }
 
   return {
