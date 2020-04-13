@@ -1108,18 +1108,59 @@ process.chdir = function (dir) {
 process.umask = function() { return 0; };
 
 },{}],12:[function(require,module,exports){
-Scrollgraph = function Scrollgraph(options) {
+function annotate(points) {
+  setTimeout(function() {
+
+    ctx.font = '14px sans';
+    ctx.globalAlpha = 1;
+ 
+    points.forEach(function(p, i) {
+      ctx.save();
+      ctx.beginPath();
+ 
+      // first circle adjusted
+      ctx.arc(p.x1, p.y1, 4, 0, Math.PI*2);
+      ctx.strokeStyle = 'red';
+      ctx.fillStyle = 'red';
+ 
+      ctx.moveTo(800 + p.x2, p.y2);
+      ctx.lineTo(p.x1, p.y1);
+      ctx.stroke();
+ 
+      // second circle
+      ctx.strokeStyle = 'blue';
+      ctx.beginPath();
+      ctx.arc(800 + p.x2, p.y2, 4, 0, Math.PI*2);
+      ctx.stroke();
+ 
+      // label
+      ctx.beginPath();
+      ctx.fillText(i+'/'+parseInt(p.confidence.c1+p.confidence.c2), p.x1, p.y1);
+      ctx.fill();
+ 
+      ctx.restore();
+    });
+  },2500)
+}
+module.exports = annotate;
+
+},{}],13:[function(require,module,exports){
+Scrollgraph = async function Scrollgraph(options) {
+  // make this non-global later
   ctx = createCanvas(options);
 
-  // background
-  ctx.fillStyle = '#eee';
+  ctx.fillStyle = '#eee'; // background
   ctx.fillRect(0, 0, options.width, options.height);
 
-//  ctx.moveTo(-options.width/2, -options.height/2);
-  var img1 = drawImage(options.path1);
-  var img2 = drawImage(options.path2, {x: 801, y: 0});
+  ctx.moveTo(-options.width/2, -options.height/2);
+  var canvasOffset = {
+    x: options.width/2 - options.srcWidth/2,
+    y: options.height/2 - options.srcHeight/2
+  }
+  var img1 = await drawImage(options.path1, canvasOffset);
+  if (options.debug) var img2 = await drawImage(options.path2, {x: 801, y: 0}, canvasOffset);
 
-  setupMatcher(options);
+  addImage(options, options.path2);
 
   function createCanvas(canvasOptions) {
     var _ctx, canvas, height, width;
@@ -1135,86 +1176,73 @@ Scrollgraph = function Scrollgraph(options) {
   }
 
   function drawImage(src, offset) {
-    var img = new Image();
     offset = offset || {x: 0, y: 0};
-    img.onload = function loadImage() {
-//      ctx.globalAlpha = 0.5;
-      ctx.drawImage(
-        img,
-        0, 0,
-        img.width,
-        img.height,
-        offset.x,
-        offset.y,
-        img.width,
-        img.height
-      );
-    }
-    img.src = src;
-    return img;
+    return new Promise((resolve, reject) => {
+      let img = new Image()
+      img.onload = () => {
+        ctx.globalAlpha = 0.5;
+        ctx.drawImage(
+          img,
+          0, 0,
+          img.width,
+          img.height,
+          offset.x,
+          offset.y,
+          img.width,
+          img.height
+        );
+        resolve(img)
+      }
+      img.src = src;
+    })
   }
 
-  function setupMatcher(matcherOptions) {
+  function addImage(matcherOptions, imgSrc) {
     require('../node_modules/matcher-core/src/orb.core.js');
     var matcher = new Matcher(matcherOptions.path1, matcherOptions.path2,
       async function onMatches(q) {
         var res = await q;
-        console.log("points found", res);
+        if (options.debug) console.log("points found", res);
         var points = sortByConfidence(res.matched_points);
+        points = correctPoints(points, img1.width);
+        // pointsWithOffset(points, canvasOffset);
         var angle = findAngle(points[0], points[1]);
         // this offset will only work for translation, not rotation
         var offset = getOffset(points[0]);
-        var offset2 = getOffset(points[0]);
 
-        //drawImage(matcherOptions.path2, offset);
-
-setTimeout(function() {
-        var ratio = img1.width / 512; // ratio of source image to pattern-matching cavas
-console.log('ratio ', ratio, ' width: ', img1.width);
-
-  ctx.font = '14px sans';
-  ctx.globalAlpha = 1;
-
-  points.forEach(function(p, i) {
-    ctx.save();
-    ctx.beginPath();
-
-    var ratio2 = ratio / 1.25; // mysterious 1.25 factor off on 2nd image
-
-    // first circle adjusted
-    ctx.arc(p.x1 * ratio, p.y1 * ratio, 4, 0, Math.PI*2);
-    ctx.strokeStyle = 'red';
-    ctx.fillStyle = 'red';
-
-    ctx.moveTo(800 + p.x2 * ratio2, p.y2 * ratio2);
-    ctx.lineTo(p.x1 * ratio, p.y1 * ratio);
-    ctx.stroke();
-
-    // second circle
-    ctx.strokeStyle = 'blue';
-    ctx.beginPath();
-    ctx.arc(800 + p.x2 * ratio2, p.y2 * ratio2, 4, 0, Math.PI*2);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.fillText(i+'/'+parseInt(p.confidence.c1+p.confidence.c2), p.x1*options.xAdjust, p.y1*options.yAdjust);
-    ctx.fill();
-
-    ctx.restore();
-});
-},2500)
-
+        drawImage(imgSrc, mergeOffsets(offset, canvasOffset));
+        if (options.debug) require('./debug/annotate.js')(points);
       },
       {
         browser: true,
         leniency: 30,
-        dimensions: options.dimensions || [640, 480],
         params: {
           lap_thres: 30,
           eigen_thres: 35
         }
       }
     );
+  }
+
+  // adjust points from pattern-matching 512x512 pixel space (with its oddities and ambiguities)
+  // to the input image pixel space(s)
+  function correctPoints(points, width) {
+    var ratio = width / 512; // ratio of source image to pattern-matching cavas
+    var ratio2 = ratio / 1.25; // mysterious 1.25 factor off on 2nd image
+    points.forEach(function(p, i) {
+      p.x1 *= ratio;
+      p.y1 *= ratio;
+      p.x2 *= ratio2;
+      p.y2 *= ratio2;
+    });
+    return points;
+  }
+
+  function mergeOffsets(oA, oB) {
+    return {
+      x: oA.x + oB.x,
+      y: oA.y + oB.y
+    }
   }
 
   function sortByConfidence(points) {
@@ -1247,4 +1275,4 @@ console.log('ratio ', ratio, ' width: ', img1.width);
   }
 }
 
-},{"../node_modules/matcher-core/src/orb.core.js":9}]},{},[12]);
+},{"../node_modules/matcher-core/src/orb.core.js":9,"./debug/annotate.js":12}]},{},[13,12]);
