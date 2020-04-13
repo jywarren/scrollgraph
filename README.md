@@ -2,6 +2,47 @@
 
 Create high res images by scrolling around at low res in video.
 
+============
+
+TODO now:
+
+X make initial display of 2 images with interest points circled in blue and red
+X figure out weird offset ratios
+  * so... the pixels in img1 are off by 1.5625, or 1000/640 or 800/512.
+  * the pixels in img2 are off by 1.25, or 600/480 or 1000/800, or 800/640
+  * is it matching points across the whole image, but reporting them in only 640x480 pixel space?
+BRAINSTORM
+* try doing it with 640x480 images???
+* look for 1000 ratios in the code or defaults?
+  * or in matcher-core?
+  * check default image sizes in matcher core demos?
+
+LEARNED:
+* at 640x480, both sets of points are correct at 1.25
+NOTE: we may have a max image dimension of 512... somewhere? https://github.com/inspirit/jsfeat/search?q=512&unscoped_q=512
+  * maxPatternSize in matcher-core, too!
+  * PROBABLY we are resizing the image to 512x512 before finding matches? YES: jsfeat.imgproc.resample(imgg, lev0Img, newWidth, newHeight);
+    * here, we choose whichever is the larger dimension? https://github.com/publiclab/matcher-core/blob/68d7e6bb47f499df19d41f8dca3dd47498f4bad3/src/orb.core.js#L100-L103
+
+  * YESSSSSS If we downscale 640x480 to 512x384, we need to scale up the output coords by 1.25 to get back!!!!
+    * how about 800x600? YESSS 600/384 = 1.5625!!!!
+
+##########################
+WE NEED TO UNDO THE SCALING AFTER IT RETURNS AN IMAGE WITHIN A 512px SQUARE
+however, maybe the second image is done differently? as it was always in 1.25? 1.25x1.25 = 1.5625 OMGGGGGG
+##########################
+==> ok, we also need to know why img2 is always off by 1.25 while img1 varies
+* haven't yet found coord conversions for img2... 
+  * one lead is: where secImage is used near putImageData??
+  * second is to put some points in the max x/y location and see the returned keypoint coords
+
+* does the second image not need to be adjusted because it's overwritten somehow onto the first one?? Where's the resample? 
+
+
+* use function findTransform(matches, count, patternCorners, screenCorners, homo3x3, matchMask) {
+  * https://github.com/rexagod/matcher-core/blob/b47f3b0e63bcbd8931b1503d57b926915049f4d6/assets/utils/orb.findTransform.js#L3
+
+=============
 
 https://github.com/publiclab/matcher-core
 Reference implementation: https://github.com/publiclab/Leaflet.DistortableImage/pull/312

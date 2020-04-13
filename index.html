@@ -1,41 +1,29 @@
 <!DOCTYPE html>
 <html lang="en" manifest="index.manifest">
   <head>
-    
     <title>Scrollgraph</title>
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <link href="node_modules/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="node_modules/font-awesome/css/font-awesome.min.css" rel="stylesheet">
     <link href="dist/scrollgraph.css" rel="stylesheet">
-
     <script src="node_modules/jquery/dist/jquery.min.js"></script>
     <script src="node_modules/bootstrap/dist/js/bootstrap.min.js"></script>
-
     <script src="dist/scrollgraph.js"></script>
   </head>
-
   <body>
-
     <canvas style="width:100%;" id="canvas"></canvas>
-
   </body>
-
   <script>
-
+    var r = 1024/512;
     var scrollgraph = Scrollgraph({
-      //path1: "images/ceresA-med.jpg",
-      //path2: "images/ceresB-med.jpg",
+      //path1: "images/ceresA-lg.jpg",
+      //path2: "images/ceresB-lg.jpg",
       //path1: "images/egg1.jpg",
       //path2: "images/egg2.jpg",
       path1: "images/test1.png",
       path2: "images/test2.png",
-      sourceWidth: 1000,
-      sourceHeight: 750,
-      width: 1000,
-      height: 1000
+      width: 1600,
+      height: 1600
     });
-
   </script>
 </html>
