@@ -1108,6 +1108,54 @@ process.chdir = function (dir) {
 process.umask = function() { return 0; };
 
 },{}],12:[function(require,module,exports){
+module.exports = function addImage(options, imgSrc, ctx) {
+  require('../node_modules/matcher-core/src/orb.core.js');
+  var matcher = new Matcher(options.path1, options.path2,
+    async function onMatches(q) {
+      let util = require('./util.js')(options),
+          drawImage = require('./drawImage.js');
+      var res = await q;
+      if (options.debug) console.log("points found", res);
+      var points = util.sortByConfidence(res.matched_points);
+      points = util.correctPoints(points, options.srcWidth);
+      // pointsWithOffset(points, options.canvasOffset);
+      //var angle = util.findAngle(points[0], points[1]);
+      // this offset will only work for translation, not rotation
+      var offset = util.averageOffsets([
+        util.getOffset(points[0]),
+        util.getOffset(points[1]),
+        util.getOffset(points[2])
+      ]);
+
+      drawImage(ctx, imgSrc, util.sumOffsets(offset, options.canvasOffset));
+      if (options.debug) require('./debug/annotate.js')(points);
+    },
+    {
+      browser: true,
+      leniency: 30,
+      params: {
+        lap_thres: 30,
+        eigen_thres: 35
+      }
+    }
+  );
+}
+
+},{"../node_modules/matcher-core/src/orb.core.js":9,"./debug/annotate.js":14,"./drawImage.js":15,"./util.js":17}],13:[function(require,module,exports){
+module.exports = function createCanvas(canvasOptions) {
+  var _ctx, canvas, height, width;
+  canvasOptions.canvasId = canvasOptions.canvasId || "canvas";
+  canvas = document.getElementById(canvasOptions.canvasId);
+  _ctx = canvas.getContext("2d");
+  width = canvasOptions.width || 1000;
+  height = canvasOptions.height || 1000;
+  canvas.width = width;
+  canvas.height = height;
+  $(canvas).css('height', $(canvas).width() + 'px');
+  return _ctx;
+}
+
+},{}],14:[function(require,module,exports){
 function annotate(points) {
   setTimeout(function() {
 
@@ -1144,8 +1192,36 @@ function annotate(points) {
 }
 module.exports = annotate;
 
-},{}],13:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
+module.exports = function drawImage(ctx, src, offset) {
+  offset = offset || {x: 0, y: 0};
+  return new Promise((resolve, reject) => {
+    let img = new Image()
+    img.onload = () => {
+      ctx.globalAlpha = 0.5;
+      ctx.drawImage(
+        img,
+        0, 0,
+        img.width,
+        img.height,
+        offset.x,
+        offset.y,
+        img.width,
+        img.height
+      );
+      resolve(img)
+    }
+    img.src = src;
+  })
+}
+
+},{}],16:[function(require,module,exports){
 Scrollgraph = async function Scrollgraph(options) {
+  let drawImage = require('./drawImage.js'),
+      createCanvas = require('./createCanvas.js'),
+      util = require('./util.js')(options),
+      addImage = require('./addImage.js');
+
   // make this non-global later
   ctx = createCanvas(options);
 
@@ -1153,76 +1229,35 @@ Scrollgraph = async function Scrollgraph(options) {
   ctx.fillRect(0, 0, options.width, options.height);
 
   ctx.moveTo(-options.width/2, -options.height/2);
-  var canvasOffset = {
+
+  options.canvasOffset = options.canvasOffset || {
     x: options.width/2 - options.srcWidth/2,
     y: options.height/2 - options.srcHeight/2
   }
-  var img1 = await drawImage(options.path1, canvasOffset);
-  if (options.debug) var img2 = await drawImage(options.path2, {x: 801, y: 0}, canvasOffset);
 
-  addImage(options, options.path2);
+  var img1 = await drawImage(ctx, options.path1, options.canvasOffset);
+  if (options.debug) var img2 = await drawImage(ctx, options.path2, {x: 801, y: 0}, options.canvasOffset);
 
-  function createCanvas(canvasOptions) {
-    var _ctx, canvas, height, width;
-    canvasOptions.canvasId = canvasOptions.canvasId || "canvas";
-    canvas = document.getElementById(canvasOptions.canvasId);
-    _ctx = canvas.getContext("2d");
-    width = canvasOptions.width || 1000;
-    height = canvasOptions.height || 1000;
-    canvas.width = width;
-    canvas.height = height;
-    $(canvas).css('height', $(canvas).width() + 'px');
-    return _ctx;
+  // here, run this each time we get a new image
+  addImage(options, options.path2, ctx);
+
+
+
+
+  // for future usage: 
+
+  // currently as imageData
+  function getCanvasAsImage() {
+    return ctx.getImageData(0, 0, options.width || 1000, options.height || 1000);
   }
 
-  function drawImage(src, offset) {
-    offset = offset || {x: 0, y: 0};
-    return new Promise((resolve, reject) => {
-      let img = new Image()
-      img.onload = () => {
-        ctx.globalAlpha = 0.5;
-        ctx.drawImage(
-          img,
-          0, 0,
-          img.width,
-          img.height,
-          offset.x,
-          offset.y,
-          img.width,
-          img.height
-        );
-        resolve(img)
-      }
-      img.src = src;
-    })
+  return {
+    getCanvasAsImage: getCanvasAsImage
   }
+}
 
-  function addImage(matcherOptions, imgSrc) {
-    require('../node_modules/matcher-core/src/orb.core.js');
-    var matcher = new Matcher(matcherOptions.path1, matcherOptions.path2,
-      async function onMatches(q) {
-        var res = await q;
-        if (options.debug) console.log("points found", res);
-        var points = sortByConfidence(res.matched_points);
-        points = correctPoints(points, img1.width);
-        // pointsWithOffset(points, canvasOffset);
-        var angle = findAngle(points[0], points[1]);
-        // this offset will only work for translation, not rotation
-        var offset = getOffset(points[0]);
-
-        drawImage(imgSrc, mergeOffsets(offset, canvasOffset));
-        if (options.debug) require('./debug/annotate.js')(points);
-      },
-      {
-        browser: true,
-        leniency: 30,
-        params: {
-          lap_thres: 30,
-          eigen_thres: 35
-        }
-      }
-    );
-  }
+},{"./addImage.js":12,"./createCanvas.js":13,"./drawImage.js":15,"./util.js":17}],17:[function(require,module,exports){
+module.exports = function util(options) {
 
   // adjust points from pattern-matching 512x512 pixel space (with its oddities and ambiguities)
   // to the input image pixel space(s)
@@ -1238,7 +1273,19 @@ Scrollgraph = async function Scrollgraph(options) {
     return points;
   }
 
-  function mergeOffsets(oA, oB) {
+  function averageOffsets(offsets) {
+    var x = 0, y = 0;
+    offsets.forEach(function(offset) {
+      x += offset.x;
+      y += offset.y;
+    });    
+    return {
+      x: x / offsets.length,
+      y: y / offsets.length
+    }
+  }
+
+  function sumOffsets(oA, oB) {
     return {
       x: oA.x + oB.x,
       y: oA.y + oB.y
@@ -1265,14 +1312,14 @@ Scrollgraph = async function Scrollgraph(options) {
     return Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;    
   }
 
-  // currently as imageData
-  function getCanvasAsImage() {
-    return ctx.getImageData(0, 0, options.width || 1000, options.height || 1000);
-  }
-
   return {
-    getCanvasAsImage: getCanvasAsImage
+    averageOffsets: averageOffsets,
+    correctPoints: correctPoints,
+    sumOffsets: sumOffsets,
+    sortByConfidence: sortByConfidence,
+    getOffset: getOffset,
+    findAngle: findAngle
   }
 }
 
-},{"../node_modules/matcher-core/src/orb.core.js":9,"./debug/annotate.js":12}]},{},[13,12]);
+},{}]},{},[12,13,15,16,17,14]);

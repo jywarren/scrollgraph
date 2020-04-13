@@ -18,8 +18,8 @@ X fix them
 https://github.com/publiclab/matcher-core
 Reference implementation: https://github.com/publiclab/Leaflet.DistortableImage/pull/312
 
-* create a canvas
-* be able to insert an image onto it
+x create a canvas
+x be able to insert an image onto it
 * store previous image in a stack, n deep, and x,y location
 * be able to fetch current canvas as an image (as a fallback)
 * use Matcher to find matches
@@ -31,7 +31,7 @@ X get matcher working with 2 images
 
 Phase 1
 
-* place image at x,y relative to orig image
+x place image at x,y relative to orig image
   * idea 1: 
     * find best 2 matches (see sorting by confidence here: https://github.com/publiclab/Leaflet.DistortableImage/pull/312/files#diff-edfdd198986795d35dcb901669e98a76R71-R73)
     * calculate rotation change
