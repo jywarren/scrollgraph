@@ -26,7 +26,7 @@ Scrollgraph = async function Scrollgraph(options) {
         addImage(options, prevImg, img, ctx);
         //addImage(options, 'images/egg1.jpg', 'images/egg2.jpg', ctx);
         prevImg = img;
-        setTimeout(placeImage, 2000);
+        setTimeout(placeImage, 1500);
       }
     });
   }
