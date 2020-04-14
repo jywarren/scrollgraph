@@ -1,4 +1,4 @@
-function annotate(points) {
+function annotate(points, ctx) {
   setTimeout(function() {
 
     ctx.font = '14px sans';

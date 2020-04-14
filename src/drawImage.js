@@ -7,8 +7,8 @@ module.exports = function drawImage(ctx, src, offset) {
       ctx.drawImage(
         img,
         0, 0,
-        img.width,
-        img.height,
+        img.width || img.videoWidth,
+        img.height || img.videoWidth,
         offset.x,
         offset.y,
         img.width,
@@ -17,5 +17,5 @@ module.exports = function drawImage(ctx, src, offset) {
       resolve(img)
     }
     img.src = src;
-  })
+  });
 }

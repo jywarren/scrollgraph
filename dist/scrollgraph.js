@@ -10,10 +10,16 @@ exports.jsfeat = jsfeat;
 const jsfeat = require('../js/jsfeat.min.js');
 const {icAngle} = require('./orb.icAngle.js');
 
+// expects pre-initialized corners array of:
+// `new jsfeat.keypoint_t(0, 0, 0, 0, -1);` empty corners
+// https://inspirit.github.io/jsfeat/sample_orb.html
+// https://inspirit.github.io/jsfeat/#features2d
 function detectKeypoints(img, corners, maxAllowed) {
+  // detect features
   let count = jsfeat.yape06.detect(img, corners, 17);
   const uMax = new Int32Array([15, 15, 15, 15, 14, 14, 14, 13, 13, 12, 11, 10, 9, 8, 6, 3, 0]);
 
+  // sort by score and reduce the count if needed
   if (count > maxAllowed) {
     jsfeat.math.qsort(corners, 0, count - 1, function(a, b) {
       return (b.score < a.score);
@@ -21,6 +27,7 @@ function detectKeypoints(img, corners, maxAllowed) {
     count = maxAllowed;
   }
 
+  // calculate dominant orientation for each keypoint
   for (let i = 0; i < count; ++i) {
     corners[i].angle = icAngle(uMax, img, corners[i].x, corners[i].y);
   }
@@ -34,6 +41,8 @@ exports.detectKeypoints = detectKeypoints;
 },{"../js/jsfeat.min.js":1,"./orb.icAngle.js":4}],3:[function(require,module,exports){
 const jsfeat = require('../js/jsfeat.min.js');
 
+// estimate homography transform between matched points
+// https://inspirit.github.io/jsfeat/sample_orb.html
 function findTransform(matches, count, patternCorners, screenCorners, homo3x3, matchMask) {
   const mmKernel = new jsfeat.motion_model.homography2d();
   const numModelPoints = 4;
@@ -80,6 +89,8 @@ exports.findTransform = findTransform;
 
 
 },{"../js/jsfeat.min.js":1}],4:[function(require,module,exports){
+// central difference using image moments to find dominant orientation
+// https://inspirit.github.io/jsfeat/sample_orb.html
 function icAngle(uMax, img, px, py) {
   const halfK = 15;
   let m01 = 0;
@@ -93,10 +104,13 @@ function icAngle(uMax, img, px, py) {
   let d = 0;
   let valPlus = 0;
   let valMinus = 0;
+  // Treat the center line differently, v=0
   for (u = -halfK; u <= halfK; ++u) {
     m10 += u * src[centerOff + u];
   }
+  // Go line by line in the circular patch
   for (v = 1; v <= halfK; ++v) {
+    // Proceed over the two lines
     vSum = 0;
     d = uMax[v];
     for (u = -d; u <= d; ++u) {
@@ -113,6 +127,7 @@ function icAngle(uMax, img, px, py) {
 exports.icAngle = icAngle;
 
 },{}],5:[function(require,module,exports){
+// Adapted from https://inspirit.github.io/jsfeat/sample_orb.html
 const {popcnt32} = require('./orb.popcnt32.js');
 
 function matchPattern(matches, screenDescriptors, patternDescriptors, numTrainLevels, options) {
@@ -199,6 +214,8 @@ exports.renderCorners = renderCorners;
 
 
 },{}],8:[function(require,module,exports){
+
+// https://inspirit.github.io/jsfeat/sample_orb.html
 async function renderMatches(args, ctx, matches, count, screenCorners, patternCorners, matchesArray, matchMask) {
   for (let i = 0; i < count; ++i) {
     const m = await matches[i];
@@ -218,6 +235,615 @@ async function renderMatches(args, ctx, matches, count, screenCorners, patternCo
 exports.renderMatches = renderMatches;
 
 },{}],9:[function(require,module,exports){
+// Adapted from https://inspirit.github.io/jsfeat/sample_orb.html
+
+// ===================DEPENDENCIES===================
+const jsfeat = require('../assets/js/jsfeat.min.js');
+const resolve = require('path').resolve;
+
+// ===================UTILS===================
+const {detectKeypoints} = require('../assets/utils/orb.detectKeypoints.js');
+const {findTransform} = require('../assets/utils/orb.findTransform.js');
+const {matchPattern} = require('../assets/utils/orb.matchPattern.js');
+const {renderCorners} = require('../assets/utils/orb.renderCorners.js');
+const {renderMatches} = require('../assets/utils/orb.renderMatches.js');
+
+// ===================ORB-CORE ALGORITHM===================
+const orbify = function(X, Y, cb, args = {}) {
+  args.browser = true;
+  args.caching =
+    args.caching == true || args.caching == undefined ? true : false;
+  args.leniency = args.leniency || 30;
+  args.dimensions = args.dimensions || [640, 480];
+  this.args = args;
+  self = this;
+  const canvas = document.createElement('CANVAS'),
+    c = document.createElement('CANVAS');
+
+  if (X instanceof Image) var primaryImage = X;
+  else {
+    primaryImage = new Image();
+    primaryImage.src = X;
+  }
+  if (Y instanceof Image) var secImage = Y;
+  else {
+    secImage = new Image();
+    secImage.src = Y;
+  }
+
+  let options,
+    matchesArray = [],
+    cornersArray = [];
+
+  canvas.setAttribute('id', 'canvas');
+  canvas.setAttribute('width', self.args.dimensions[0]);
+  canvas.setAttribute('height', self.args.dimensions[1]);
+  c.setAttribute('id', 'myCanvas');
+  c.setAttribute('style', 'border:1px solid #d3d3d3');
+
+  function initialize() {
+    c.width = primaryImage.width;
+    c.height = primaryImage.height;
+    c.style.display = 'none';
+
+    const ctxx = c.getContext('2d');
+    ctxx.drawImage(
+        primaryImage,
+        0,
+        0,
+        primaryImage.width,
+        primaryImage.height
+    );
+
+    options.train_pattern();
+  };
+
+  (function core() {
+    'use strict';
+
+    let ctx,
+      imgU8,
+      imgU8Smooth,
+      screenCorners,
+      numCorners,
+      screenDescriptors,
+      patternCorners,
+      patternDescriptors,
+      patternPreview,
+      matches,
+      homo3x3,
+      matchMask;
+
+    // our point match structure
+    const matchT = (function() {
+        function matchT(screenIdx, patternLev, patternIdx, distance) {
+          if (typeof screenIdx === 'undefined') {
+            screenIdx = 0;
+          }
+          if (typeof patternLev === 'undefined') {
+            patternLev = 0;
+          }
+          if (typeof patternIdx === 'undefined') {
+            patternIdx = 0;
+          }
+          if (typeof distance === 'undefined') {
+            distance = 0;
+          }
+          matchT.screenIdx = screenIdx;
+          matchT.patternLev = patternLev;
+          matchT.patternIdx = patternIdx;
+          matchT.distance = distance;
+        }
+        return matchT;
+      })(),
+      numTrainLevels = 4;
+
+    // https://inspirit.github.io/jsfeat/sample_orb.html
+    const demoOpt = function() {
+      const params = self.args.params || {};
+      this.blur_size = params.blur_size || 5;
+      this.lap_thres = params.lap_thres || 30;
+      this.eigen_thres = params.eigen_thres || 35;
+      this.matchThreshold = params.matchThreshold || 49;
+
+      this.train_pattern = function() {
+        const maxPatternSize = 512,
+          maxPerLevel = 300,
+          scInc = Math.sqrt(2.0),
+          ctxx = c.getContext('2d'),
+          imgData = ctxx.getImageData(
+              0,
+              0,
+              primaryImage.width,
+              primaryImage.height
+          ),
+          imgg = new jsfeat.matrix_t(
+              primaryImage.width,
+              primaryImage.height,
+              jsfeat.U8_t | jsfeat.C1_t
+          ),
+          sc0 = Math.min(
+              maxPatternSize / primaryImage.width,
+              maxPatternSize / primaryImage.height
+          ),
+          lev0Img = new jsfeat.matrix_t(
+              imgU8.cols,
+              imgU8.rows,
+              jsfeat.U8_t | jsfeat.C1_t
+          ),
+          levImg = new jsfeat.matrix_t(
+              imgU8.cols,
+              imgU8.rows,
+              jsfeat.U8_t | jsfeat.C1_t
+          );
+
+        let lev = 0,
+          i = 0,
+          sc = 1.0,
+          newWidth = (primaryImage.width * sc0) | 0,
+          newHeight = (primaryImage.height * sc0) | 0,
+          levCorners,
+          levDescriptors,
+          cornersNum = 0;
+
+        patternPreview = new jsfeat.matrix_t(
+            newWidth >> 1,
+            newHeight >> 1,
+            jsfeat.U8_t | jsfeat.C1_t
+        );
+
+        // preallocate corners array
+        for (lev = 0; lev < numTrainLevels; ++lev) {
+          patternCorners[lev] = [];
+          levCorners = patternCorners[lev];
+          i = (newWidth * newHeight) >> lev;
+          while (--i >= 0) {
+            levCorners[i] = new jsfeat.keypoint_t(0, 0, 0, 0, -1);
+          }
+          patternDescriptors[lev] = new jsfeat.matrix_t(
+              32,
+              maxPerLevel,
+              jsfeat.U8_t | jsfeat.C1_t
+          );
+        }
+
+        // do the first level
+        levCorners = patternCorners[0];
+        levDescriptors = patternDescriptors[0];
+
+        jsfeat.imgproc.grayscale(
+            imgData.data,
+            primaryImage.width,
+            primaryImage.height,
+            imgg
+        );
+        jsfeat.imgproc.resample(imgg, lev0Img, newWidth, newHeight);
+        jsfeat.imgproc.pyrdown(lev0Img, patternPreview);
+        jsfeat.imgproc.gaussian_blur(lev0Img, levImg, options.blur_size | 0);
+        cornersNum = detectKeypoints(levImg, levCorners, maxPerLevel);
+        jsfeat.orb.describe(levImg, levCorners, cornersNum, levDescriptors);
+        // console.log("train " + levImg.cols + "x" + levImg.rows + " points: " + cornersNum, levCorners);
+
+        sc /= scInc;
+
+        // lets do multiple scale levels
+        for (lev = 1; lev < numTrainLevels; ++lev) {
+          levCorners = patternCorners[lev];
+          levDescriptors = patternDescriptors[lev];
+          newWidth = (lev0Img.cols * sc) | 0;
+          newHeight = (lev0Img.rows * sc) | 0;
+          // we can use Canvas context draw method for faster resize
+          // but its nice to demonstrate that you can do everything with jsfeat
+          jsfeat.imgproc.resample(lev0Img, levImg, newWidth, newHeight);
+          jsfeat.imgproc.gaussian_blur(levImg, levImg, options.blur_size | 0);
+          cornersNum = detectKeypoints(levImg, levCorners, maxPerLevel);
+          jsfeat.orb.describe(levImg, levCorners, cornersNum, levDescriptors);
+          for (i = 0; i < cornersNum; ++i) {
+            levCorners[i].x *= 1 / sc;
+            levCorners[i].y *= 1 / sc;
+          }
+          sc /= scInc;
+        }
+      };
+    };
+
+    function demoApp() {
+      imgU8 = new jsfeat.matrix_t(self.args.dimensions[0], self.args.dimensions[1], jsfeat.U8_t | jsfeat.C1_t);
+      imgU8Smooth = new jsfeat.matrix_t(self.args.dimensions[0], self.args.dimensions[1], jsfeat.U8_t | jsfeat.C1_t);
+      screenDescriptors = new jsfeat.matrix_t(
+          32,
+          500,
+          jsfeat.U8_t | jsfeat.C1_t
+      );
+      patternDescriptors = [];
+      screenCorners = [];
+      patternCorners = [];
+      matches = [];
+      homo3x3 = new jsfeat.matrix_t(3, 3, jsfeat.F32C1_t);
+      matchMask = new jsfeat.matrix_t(500, 1, jsfeat.U8C1_t);
+      options = new demoOpt();
+
+      ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgb(0,255,0)';
+      ctx.strokeStyle = 'rgb(0,255,0)';
+
+      let i = self.args.dimensions[0] * self.args.dimensions[1];
+      while (--i >= 0) {
+        screenCorners[i] = new jsfeat.keypoint_t(0, 0, 0, 0, -1);
+        matches[i] = new matchT();
+      }
+    }
+
+    async function findPoints() {
+      if (await cornersArray.length) {
+        return true;
+      }
+
+      // repeat this method as fast as the browser can run it
+      if (true || args.loop) window.requestAnimationFrame(findPoints);
+
+      const primaryImageData = ctx.getImageData(0, 0, self.args.dimensions[0], self.args.dimensions[1]);
+
+      ctx.putImageData(primaryImageData, 0, 0);
+      ctx.drawImage(secImage, 0, 0, self.args.dimensions[0], self.args.dimensions[1]);
+
+      jsfeat.imgproc.grayscale(primaryImageData.data, self.args.dimensions[0], self.args.dimensions[1], imgU8);
+
+      jsfeat.imgproc.gaussian_blur(imgU8, imgU8Smooth, options.blur_size | 0);
+
+      jsfeat.yape06.laplacian_threshold = options.lap_thres | 0;
+      jsfeat.yape06.min_eigen_value_threshold = options.eigen_thres | 0;
+
+      numCorners = await detectKeypoints(imgU8Smooth, screenCorners, 500);
+
+      jsfeat.orb.describe(
+          imgU8Smooth,
+          screenCorners,
+          numCorners,
+          screenDescriptors
+      );
+
+      cornersArray = await renderCorners(
+          self.args,
+          cornersArray,
+          screenCorners,
+          numCorners
+      );
+    }
+
+    async function findMatchedPoints() {
+      let numMatches = 0,
+        goodMatches = 0;
+      if (findPoints()) {
+        if (await matchesArray.length) {
+          return;
+        }
+        if (true || args.loop) requestAnimationFrame(findMatchedPoints);
+        if (patternPreview) {
+          numMatches = await matchPattern(
+              matches,
+              screenDescriptors,
+              patternDescriptors,
+              numTrainLevels,
+              options
+          );
+          goodMatches = await findTransform(
+              matches,
+              numMatches,
+              patternCorners,
+              screenCorners,
+              homo3x3,
+              matchMask
+          );
+        }
+
+        if (numMatches) {
+          if (goodMatches >= (numMatches * self.args.leniency) / 100) {
+            matchesArray = await renderMatches(
+                self.args,
+                ctx,
+                matches,
+                numMatches,
+                screenCorners,
+                patternCorners,
+                matchesArray,
+                matchMask
+            );
+          }
+        }
+      }
+    }
+
+    window.onload = initialize;
+
+    demoApp();
+
+    if(args.query === 'corners') {
+      findPoints();
+    } else {
+      findMatchedPoints();
+    }
+
+  })();
+
+  if (
+    !self.args.caching ||
+    // recur only if both images are changed w.r.t. content (not order)
+    (localStorage.getItem('X') !== X && localStorage.getItem('X') !== Y) ||
+    (localStorage.getItem('Y') !== X && localStorage.getItem('Y') !== Y)
+  ) {
+    localStorage.removeItem('utils');
+    window.data = null;
+  }
+
+  // no timeout async/await polyfill -- by rexagod
+  this.utils = new Promise(function(resolve) {
+    if (self.args.query === 'corners') {
+      setTimeout(function () {
+        resolve(cornersArray);
+      }, 5000);
+    }
+    function uncachedResponse() {
+      localStorage.setItem(
+          'utils',
+          JSON.stringify({
+            points: cornersArray,
+            matched_points: matchesArray,
+          })
+      );
+      localStorage.setItem('X', X);
+      localStorage.setItem('Y', Y);
+      resolve(JSON.parse(localStorage.getItem('utils')));
+      return;
+    }
+    let timer = 0,
+      continueThread = false;
+    if (!self.args.caching) {
+      setTimeout(uncachedResponse, timer);
+    } else {
+      if (
+        JSON.parse(localStorage.getItem('utils')) &&
+        JSON.parse(localStorage.getItem('utils')).points &&
+        JSON.parse(localStorage.getItem('utils')).points.length &&
+        JSON.parse(localStorage.getItem('utils')).matched_points &&
+        JSON.parse(localStorage.getItem('utils')).matched_points.length
+      ) {
+        // second iteration
+        window.data = {
+          points: cornersArray,
+          matched_points: matchesArray,
+        };
+        resolve(JSON.parse(localStorage.getItem('utils')));
+        this.utils = Promise.resolve(this.utils);
+      } else {
+        setInterval(function() {
+          if (!continueThread) {
+            if (!matchesArray.length || !cornersArray.length) {
+              timer += 1;
+              return;
+            } else {
+              setTimeout(function() {
+                if (continueThread) {
+                  return;
+                }
+                // first iteration
+                window.data = {
+                  points: cornersArray,
+                  matched_points: matchesArray,
+                };
+                uncachedResponse();
+                continueThread = true;
+              }, timer);
+            }
+          } else {
+            return;
+          }
+        }, 1);
+      }
+    }
+  });
+
+  if (cb) {
+    cb(this.utils);
+  } else {
+    console.warn('No callback function supplied');
+  }
+
+  return {
+    initialize: initialize
+  }
+};
+
+window.Matcher = orbify;
+
+},{"../assets/js/jsfeat.min.js":1,"../assets/utils/orb.detectKeypoints.js":2,"../assets/utils/orb.findTransform.js":3,"../assets/utils/orb.matchPattern.js":5,"../assets/utils/orb.renderCorners.js":7,"../assets/utils/orb.renderMatches.js":8,"path":19}],10:[function(require,module,exports){
+arguments[4][1][0].apply(exports,arguments)
+},{"dup":1}],11:[function(require,module,exports){
+const jsfeat = require('../js/jsfeat.min.js');
+const {icAngle} = require('./orb.icAngle.js');
+
+function detectKeypoints(img, corners, maxAllowed) {
+  let count = jsfeat.yape06.detect(img, corners, 17);
+  const uMax = new Int32Array([15, 15, 15, 15, 14, 14, 14, 13, 13, 12, 11, 10, 9, 8, 6, 3, 0]);
+
+  if (count > maxAllowed) {
+    jsfeat.math.qsort(corners, 0, count - 1, function(a, b) {
+      return (b.score < a.score);
+    });
+    count = maxAllowed;
+  }
+
+  for (let i = 0; i < count; ++i) {
+    corners[i].angle = icAngle(uMax, img, corners[i].x, corners[i].y);
+  }
+
+  return count;
+}
+
+exports.detectKeypoints = detectKeypoints;
+
+
+},{"../js/jsfeat.min.js":10,"./orb.icAngle.js":13}],12:[function(require,module,exports){
+const jsfeat = require('../js/jsfeat.min.js');
+
+function findTransform(matches, count, patternCorners, screenCorners, homo3x3, matchMask) {
+  const mmKernel = new jsfeat.motion_model.homography2d();
+  const numModelPoints = 4;
+  const reprojThreshold = 3;
+  const ransacParam = new jsfeat.ransacParamsT(numModelPoints,
+      reprojThreshold, 0.5, 0.99);
+  const patternXY = [];
+  const screenXY = [];
+  for (let i = 0; i < count; ++i) {
+    const m = matches[i];
+    const sKp = screenCorners[m.screenIdx];
+    const pKp = patternCorners[m.patternLev][m.patternIdx];
+    patternXY[i] = {
+      'x': pKp.x,
+      'y': pKp.y,
+    };
+    screenXY[i] = {
+      'x': sKp.x,
+      'y': sKp.y,
+    };
+  }
+  let ok = false;
+  ok = jsfeat.motion_estimator.ransac(ransacParam, mmKernel,
+      patternXY, screenXY, count, homo3x3, matchMask, 1000);
+  let goodCnt = 0;
+  if (ok) {
+    for (let i = 0; i < count; ++i) {
+      if (matchMask.data[i]) {
+        patternXY[goodCnt].x = patternXY[i].x;
+        patternXY[goodCnt].y = patternXY[i].y;
+        screenXY[goodCnt].x = screenXY[i].x;
+        screenXY[goodCnt].y = screenXY[i].y;
+        goodCnt++;
+      }
+    }
+    mmKernel.run(patternXY, screenXY, homo3x3, goodCnt);
+  } else {
+    jsfeat.matmath.identity_3x3(homo3x3, 1.0);
+  }
+  return goodCnt;
+}
+
+exports.findTransform = findTransform;
+
+
+},{"../js/jsfeat.min.js":10}],13:[function(require,module,exports){
+function icAngle(uMax, img, px, py) {
+  const halfK = 15;
+  let m01 = 0;
+  let m10 = 0;
+  const src = img.data;
+  const step = img.cols;
+  let u = 0;
+  let v = 0;
+  const centerOff = (py * step + px) | 0;
+  let vSum = 0;
+  let d = 0;
+  let valPlus = 0;
+  let valMinus = 0;
+  for (u = -halfK; u <= halfK; ++u) {
+    m10 += u * src[centerOff + u];
+  }
+  for (v = 1; v <= halfK; ++v) {
+    vSum = 0;
+    d = uMax[v];
+    for (u = -d; u <= d; ++u) {
+      valPlus = src[centerOff + u + v * step];
+      valMinus = src[centerOff + u - v * step];
+      vSum += (valPlus - valMinus);
+      m10 += u * (valPlus + valMinus);
+    }
+    m01 += v * vSum;
+  }
+  return Math.atan2(m01, m10);
+}
+
+exports.icAngle = icAngle;
+
+},{}],14:[function(require,module,exports){
+const {popcnt32} = require('./orb.popcnt32.js');
+
+function matchPattern(matches, screenDescriptors, patternDescriptors, numTrainLevels, options) {
+  const qCnt = screenDescriptors.rows;
+  const queryU32 = screenDescriptors.buffer.i32;
+  let qdOff = 0;
+  let qidx = 0;
+  let lev = 0;
+  let pidx = 0;
+  let k = 0;
+  let numMatches = 0;
+  for (qidx = 0; qidx < qCnt; ++qidx) {
+    let bestDist = 256;
+    let bestDist2 = 256;
+    let bestIdx = -1;
+    let bestLev = -1;
+
+    for (lev = 0; lev < numTrainLevels; ++lev) {
+      const levDescriptors = patternDescriptors[lev];
+      const ldCnt = levDescriptors.rows;
+      const ldI32 = levDescriptors.buffer.i32;
+      let ldOff = 0;
+
+      for (pidx = 0; pidx < ldCnt; ++pidx) {
+        let currD = 0;
+        for (k = 0; k < 8; ++k) {
+          currD += popcnt32(queryU32[qdOff + k] ^ ldI32[ldOff + k]);
+        }
+
+        if (currD < bestDist) {
+          bestDist2 = bestDist;
+          bestDist = currD;
+          bestLev = lev;
+          bestIdx = pidx;
+        } else if (currD < bestDist2) {
+          bestDist2 = currD;
+        }
+
+        ldOff += 8;
+      }
+    }
+    if (bestDist < options.matchThreshold) {
+      matches[numMatches].screenIdx = qidx;
+      matches[numMatches].patternLev = bestLev;
+      matches[numMatches].patternIdx = bestIdx;
+      numMatches++;
+    }
+    qdOff += 8;
+  }
+  return numMatches;
+}
+
+exports.matchPattern = matchPattern;
+
+
+},{"./orb.popcnt32.js":15}],15:[function(require,module,exports){
+arguments[4][6][0].apply(exports,arguments)
+},{"dup":6}],16:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"dup":7}],17:[function(require,module,exports){
+async function renderMatches(args, ctx, matches, count, screenCorners, patternCorners, matchesArray, matchMask) {
+  for (let i = 0; i < count; ++i) {
+    const m = await matches[i];
+    const sKp = await screenCorners[m.screenIdx];
+    const pKp = await patternCorners[m.patternLev][m.patternIdx];
+    const matchedPair = await {confidence: {c1: pKp.score, c2: sKp.score}, x1: pKp.x, y1: pKp.y, x2: sKp.x, y2: sKp.y, population: count};
+    if (!args.browser) {
+      console.log(`Pairs: ${await (JSON.stringify(matchedPair)).toString()}`);
+    }
+    if (matchesArray.indexOf(matchedPair) === -1 && matchesArray.length < count) {
+      await matchesArray.push(matchedPair);
+    }
+  }
+  return await matchesArray;
+}
+
+exports.renderMatches = renderMatches;
+
+},{}],18:[function(require,module,exports){
 // ===================DEPENDENCIES===================
 const jsfeat = require('../assets/js/jsfeat.min.js');
 const resolve = require('path').resolve;
@@ -615,7 +1241,7 @@ const orbify = function(X, Y, cb, args = {}) {
 
 window.Matcher = orbify;
 
-},{"../assets/js/jsfeat.min.js":1,"../assets/utils/orb.detectKeypoints.js":2,"../assets/utils/orb.findTransform.js":3,"../assets/utils/orb.matchPattern.js":5,"../assets/utils/orb.renderCorners.js":7,"../assets/utils/orb.renderMatches.js":8,"path":10}],10:[function(require,module,exports){
+},{"../assets/js/jsfeat.min.js":10,"../assets/utils/orb.detectKeypoints.js":11,"../assets/utils/orb.findTransform.js":12,"../assets/utils/orb.matchPattern.js":14,"../assets/utils/orb.renderCorners.js":16,"../assets/utils/orb.renderMatches.js":17,"path":19}],19:[function(require,module,exports){
 (function (process){
 // .dirname, .basename, and .extname methods are extracted from Node.js v8.11.1,
 // backported and transplited with Babel, with backwards-compat fixes
@@ -921,7 +1547,7 @@ var substr = 'ab'.substr(-1) === 'b'
 ;
 
 }).call(this,require('_process'))
-},{"_process":11}],11:[function(require,module,exports){
+},{"_process":20}],20:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -1107,10 +1733,15 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],12:[function(require,module,exports){
-module.exports = function addImage(options, imgSrc, ctx) {
-  require('../node_modules/matcher-core/src/orb.core.js');
-  var matcher = new Matcher(options.path1, options.path2,
+},{}],21:[function(require,module,exports){
+module.exports = async function addImage(options, img1, img2, ctx) {
+  //require('../node_modules/matcher-core/src/orb.core.js');
+  require('../../matcher-core/src/orb.core.js');
+
+  if (img1 instanceof String) img1 = await loadImage(img1);
+  if (img2 instanceof String) img2 = await loadImage(img2);
+
+  var matcher = new Matcher(img1, img2,
     async function onMatches(q) {
       let util = require('./util.js')(options),
           drawImage = require('./drawImage.js');
@@ -1127,8 +1758,8 @@ module.exports = function addImage(options, imgSrc, ctx) {
         util.getOffset(points[2])
       ]);
 
-      drawImage(ctx, imgSrc, util.sumOffsets(offset, options.canvasOffset));
-      if (options.debug) require('./debug/annotate.js')(points);
+      drawImage(ctx, img2.src, util.sumOffsets(offset, options.canvasOffset));
+      if (options.debug) require('./debug/annotate.js')(points, ctx);
     },
     {
       browser: true,
@@ -1139,24 +1770,35 @@ module.exports = function addImage(options, imgSrc, ctx) {
       }
     }
   );
+  window.requestAnimationFrame(matcher.initialize);
 }
 
-},{"../node_modules/matcher-core/src/orb.core.js":9,"./debug/annotate.js":14,"./drawImage.js":15,"./util.js":17}],13:[function(require,module,exports){
-module.exports = function createCanvas(canvasOptions) {
-  var _ctx, canvas, height, width;
-  canvasOptions.canvasId = canvasOptions.canvasId || "canvas";
-  canvas = document.getElementById(canvasOptions.canvasId);
-  _ctx = canvas.getContext("2d");
-  width = canvasOptions.width || 1000;
-  height = canvasOptions.height || 1000;
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    let img = new Image()
+    img.onload = () => resolve(img)
+    img.src = src;
+  });
+}
+
+},{"../../matcher-core/src/orb.core.js":9,"./debug/annotate.js":23,"./drawImage.js":24,"./util.js":26}],22:[function(require,module,exports){
+module.exports = function createCanvas(options) {
+  var ctx, canvas, height, width;
+  options.canvasId = options.canvasId || "canvas";
+  canvas = document.getElementById(options.canvasId);
+  ctx = canvas.getContext("2d");
+  width = options.width || 1000;
+  height = options.height || 1000;
   canvas.width = width;
   canvas.height = height;
   $(canvas).css('height', $(canvas).width() + 'px');
-  return _ctx;
+  ctx.fillStyle = '#eee'; // background
+  ctx.fillRect(0, 0, options.width, options.height);
+  return ctx;
 }
 
-},{}],14:[function(require,module,exports){
-function annotate(points) {
+},{}],23:[function(require,module,exports){
+function annotate(points, ctx) {
   setTimeout(function() {
 
     ctx.font = '14px sans';
@@ -1192,7 +1834,7 @@ function annotate(points) {
 }
 module.exports = annotate;
 
-},{}],15:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 module.exports = function drawImage(ctx, src, offset) {
   offset = offset || {x: 0, y: 0};
   return new Promise((resolve, reject) => {
@@ -1202,8 +1844,8 @@ module.exports = function drawImage(ctx, src, offset) {
       ctx.drawImage(
         img,
         0, 0,
-        img.width,
-        img.height,
+        img.width || img.videoWidth,
+        img.height || img.videoWidth,
         offset.x,
         offset.y,
         img.width,
@@ -1212,51 +1854,58 @@ module.exports = function drawImage(ctx, src, offset) {
       resolve(img)
     }
     img.src = src;
-  })
+  });
 }
 
-},{}],16:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 Scrollgraph = async function Scrollgraph(options) {
-  let drawImage = require('./drawImage.js'),
-      createCanvas = require('./createCanvas.js'),
+  require('../node_modules/matcher-core/src/orb.core.js');
+  var drawImage = require('./drawImage.js');
+  let createCanvas = require('./createCanvas.js'),
       util = require('./util.js')(options),
       addImage = require('./addImage.js');
 
-  // make this non-global later
-  ctx = createCanvas(options);
-
-  ctx.fillStyle = '#eee'; // background
-  ctx.fillRect(0, 0, options.width, options.height);
-
-  ctx.moveTo(-options.width/2, -options.height/2);
-
+  var ctx = createCanvas(options);
   options.canvasOffset = options.canvasOffset || {
     x: options.width/2 - options.srcWidth/2,
     y: options.height/2 - options.srcHeight/2
   }
 
-  var img1 = await drawImage(ctx, options.path1, options.canvasOffset);
-  if (options.debug) var img2 = await drawImage(ctx, options.path2, {x: 801, y: 0}, options.canvasOffset);
+  var prevImg = await drawImage(ctx, options.path1, options.canvasOffset);
+  var video = document.querySelector('video');
 
   // here, run this each time we get a new image
-  addImage(options, options.path2, ctx);
+  // start slow to assess speed
+  setTimeout(placeImage, 3000);
+  function placeImage() {
+    window.requestAnimationFrame(async function onFrame() {
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
 
+        let img = await require('./videoToImage')(video);
 
-
-
-  // for future usage: 
-
-  // currently as imageData
-  function getCanvasAsImage() {
-    return ctx.getImageData(0, 0, options.width || 1000, options.height || 1000);
+        addImage(options, prevImg, img, ctx);
+        //addImage(options, 'images/egg1.jpg', 'images/egg2.jpg', ctx);
+        prevImg = img;
+        setTimeout(placeImage, 2000);
+      }
+    });
   }
 
-  return {
-    getCanvasAsImage: getCanvasAsImage
-  }
+  // Prefer camera resolution nearest to 1280x720.
+  options.camera = options.camera || { audio: false, video: { width: 800, height: 600 } }; 
+
+  navigator.mediaDevices.getUserMedia(options.camera)
+  .then(function(mediaStream) {
+    video.srcObject = mediaStream;
+    video.onloadedmetadata = function(e) {
+      video.play();
+    };
+  })
+  .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
+
 }
 
-},{"./addImage.js":12,"./createCanvas.js":13,"./drawImage.js":15,"./util.js":17}],17:[function(require,module,exports){
+},{"../node_modules/matcher-core/src/orb.core.js":18,"./addImage.js":21,"./createCanvas.js":22,"./drawImage.js":24,"./util.js":26,"./videoToImage":27}],26:[function(require,module,exports){
 module.exports = function util(options) {
 
   // adjust points from pattern-matching 512x512 pixel space (with its oddities and ambiguities)
@@ -1322,4 +1971,23 @@ module.exports = function util(options) {
   }
 }
 
-},{}]},{},[12,13,15,16,17,14]);
+},{}],27:[function(require,module,exports){
+module.exports = function videoToImage(video) {
+  const canvas = document.createElement('CANVAS');
+  const ctx = canvas.getContext("2d");
+  let width = video.videoWidth;
+  let height = video.videoHeight;
+  canvas.width = width;
+  canvas.height = height;
+  $(canvas).css('display', 'none');
+  ctx.drawImage(video, 0, 0, width, height);
+  return new Promise((resolve, reject) => {
+    let img = new Image()
+    img.onload = () => {
+      resolve(img)
+    }
+    img.src = canvas.toDataURL();
+  });
+}
+
+},{}]},{},[21,22,24,25,26,27,23]);

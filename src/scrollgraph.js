@@ -1,39 +1,46 @@
 Scrollgraph = async function Scrollgraph(options) {
-  let drawImage = require('./drawImage.js'),
-      createCanvas = require('./createCanvas.js'),
+  require('../node_modules/matcher-core/src/orb.core.js');
+  var drawImage = require('./drawImage.js');
+  let createCanvas = require('./createCanvas.js'),
       util = require('./util.js')(options),
       addImage = require('./addImage.js');
 
-  // make this non-global later
-  ctx = createCanvas(options);
-
-  ctx.fillStyle = '#eee'; // background
-  ctx.fillRect(0, 0, options.width, options.height);
-
-  ctx.moveTo(-options.width/2, -options.height/2);
-
+  var ctx = createCanvas(options);
   options.canvasOffset = options.canvasOffset || {
     x: options.width/2 - options.srcWidth/2,
     y: options.height/2 - options.srcHeight/2
   }
 
-  var img1 = await drawImage(ctx, options.path1, options.canvasOffset);
-  if (options.debug) var img2 = await drawImage(ctx, options.path2, {x: 801, y: 0}, options.canvasOffset);
+  var prevImg = await drawImage(ctx, options.path1, options.canvasOffset);
+  var video = document.querySelector('video');
 
   // here, run this each time we get a new image
-  addImage(options, options.path2, ctx);
+  // start slow to assess speed
+  setTimeout(placeImage, 3000);
+  function placeImage() {
+    window.requestAnimationFrame(async function onFrame() {
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
 
+        let img = await require('./videoToImage')(video);
 
-
-
-  // for future usage: 
-
-  // currently as imageData
-  function getCanvasAsImage() {
-    return ctx.getImageData(0, 0, options.width || 1000, options.height || 1000);
+        addImage(options, prevImg, img, ctx);
+        //addImage(options, 'images/egg1.jpg', 'images/egg2.jpg', ctx);
+        prevImg = img;
+        setTimeout(placeImage, 2000);
+      }
+    });
   }
 
-  return {
-    getCanvasAsImage: getCanvasAsImage
-  }
+  // Prefer camera resolution nearest to 1280x720.
+  options.camera = options.camera || { audio: false, video: { width: 800, height: 600 } }; 
+
+  navigator.mediaDevices.getUserMedia(options.camera)
+  .then(function(mediaStream) {
+    video.srcObject = mediaStream;
+    video.onloadedmetadata = function(e) {
+      video.play();
+    };
+  })
+  .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
+
 }
