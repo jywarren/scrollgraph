@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" manifest="index.manifest">
+<html lang="en">
   <head>
     <title>Scrollgraph</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,12 +13,11 @@
   </head>
   <body>
     <canvas style="width:75%;" id="canvas"></canvas>
-    <video style="display:none; opacity: 0.5; position:absolute; right: 50px; top: 50px;" autoplay></video>
+    <video style="display:none; opacity: 0.5; position:absolute; right: 50px; top: 50px;width: 800px;" autoplay></video>
   </body>
   <script>
     var scrollgraph = Scrollgraph({
       debug: false,
-      path1: "images/jeff2.jpg",
       width: 1600,
       height: 1600,
       srcWidth: 800,
