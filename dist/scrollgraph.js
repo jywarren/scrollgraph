@@ -1871,20 +1871,26 @@ Scrollgraph = async function Scrollgraph(options) {
     y: options.height/2 - options.srcHeight/2
   }
 
-  var prevImg = await drawImage(ctx, options.path1, options.canvasOffset);
+  var prevImg;
+  //var prevImg = await drawImage(ctx, options.path1, options.canvasOffset);
   var video = document.querySelector('video');
+  setTimeout(function() {
+    window.requestAnimationFrame(async function onFrame() {
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        let img = await require('./videoToImage')(video);
+        prevImg = await drawImage(ctx, img.src, options.canvasOffset);
+        setTimeout(placeImage, 1500);
+      }
+    });
+  }, 1500);
 
   // here, run this each time we get a new image
-  // start slow to assess speed
-  setTimeout(placeImage, 3000);
+  // setTimeout(placeImage, 3000);
   function placeImage() {
     window.requestAnimationFrame(async function onFrame() {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
-
         let img = await require('./videoToImage')(video);
-
         addImage(options, prevImg, img, ctx);
-        //addImage(options, 'images/egg1.jpg', 'images/egg2.jpg', ctx);
         prevImg = img;
         setTimeout(placeImage, 1500);
       }
