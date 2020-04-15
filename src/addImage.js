@@ -16,11 +16,18 @@ module.exports = async function addImage(options, img1, img2, ctx) {
       // pointsWithOffset(points, options.canvasOffset);
       //var angle = util.findAngle(points[0], points[1]);
       // this offset will only work for translation, not rotation
-      var offset = util.averageOffsets([
-        util.getOffset(points[0]),
-        util.getOffset(points[1]),
-        util.getOffset(points[2])
-      ]);
+      var offsets = [];
+      var minConfidence = 100;
+      function filterPoints(_points) {
+        if (_points.confidence.c1 > minConfidence && _points.confidence.c2) offsets.push(util.getOffset(_points));
+      }
+      filterPoints(points[0]);
+      filterPoints(points[1]);
+      filterPoints(points[2]);
+      filterPoints(points[3]);
+console.log(offsets.length + ' points added');
+
+      var offset = util.averageOffsets(offsets);
 
       drawImage(ctx, img2.src, util.sumOffsets(offset, options.canvasOffset));
       if (options.debug) require('./debug/annotate.js')(points, ctx);
