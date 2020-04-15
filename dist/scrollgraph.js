@@ -1752,11 +1752,18 @@ module.exports = async function addImage(options, img1, img2, ctx) {
       // pointsWithOffset(points, options.canvasOffset);
       //var angle = util.findAngle(points[0], points[1]);
       // this offset will only work for translation, not rotation
-      var offset = util.averageOffsets([
-        util.getOffset(points[0]),
-        util.getOffset(points[1]),
-        util.getOffset(points[2])
-      ]);
+      var offsets = [];
+      var minConfidence = 100;
+      function filterPoints(_points) {
+        if (_points.confidence.c1 > minConfidence && _points.confidence.c2) offsets.push(util.getOffset(_points));
+      }
+      filterPoints(points[0]);
+      filterPoints(points[1]);
+      filterPoints(points[2]);
+      filterPoints(points[3]);
+console.log(offsets.length + ' points added');
+
+      var offset = util.averageOffsets(offsets);
 
       drawImage(ctx, img2.src, util.sumOffsets(offset, options.canvasOffset));
       if (options.debug) require('./debug/annotate.js')(points, ctx);
@@ -1871,32 +1878,6 @@ Scrollgraph = async function Scrollgraph(options) {
     y: options.height/2 - options.srcHeight/2
   }
 
-  var prevImg;
-  //var prevImg = await drawImage(ctx, options.path1, options.canvasOffset);
-  var video = document.querySelector('video');
-  setTimeout(function() {
-    window.requestAnimationFrame(async function onFrame() {
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        let img = await require('./videoToImage')(video);
-        prevImg = await drawImage(ctx, img.src, options.canvasOffset);
-        setTimeout(placeImage, 1500);
-      }
-    });
-  }, 1500);
-
-  // here, run this each time we get a new image
-  // setTimeout(placeImage, 3000);
-  function placeImage() {
-    window.requestAnimationFrame(async function onFrame() {
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        let img = await require('./videoToImage')(video);
-        addImage(options, prevImg, img, ctx);
-        prevImg = img;
-        setTimeout(placeImage, 1500);
-      }
-    });
-  }
-
   // Prefer camera resolution nearest to 1280x720.
   options.camera = options.camera || { audio: false, video: { width: 800, height: 600 } }; 
 
@@ -1908,6 +1889,29 @@ Scrollgraph = async function Scrollgraph(options) {
     };
   })
   .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
+
+  var prevImg;
+  var video = document.querySelector('video');
+  var isFirst = true;
+  delay = 1000;
+  setTimeout(placeImage, delay);
+
+  // run this each time we get a new image
+  function placeImage() {
+    window.requestAnimationFrame(async function onFrame() {
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        let img = await require('./videoToImage')(video);
+        if (isFirst) {
+          prevImg = await drawImage(ctx, img.src, options.canvasOffset);
+          isFirst = false;
+        } else {
+          addImage(options, prevImg, img, ctx);
+          prevImg = img; // we may want to make this contingent on whether the image was added
+        }
+      }
+      setTimeout(placeImage, delay);
+    });
+  }
 
 }
 

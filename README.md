@@ -10,6 +10,8 @@ X make initial display of 2 images with interest points circled in blue and red
 X figure out weird offset ratios
 X fix them
 
+* trace startup sequence to see why it's getting stuck
+
 * use function findTransform(matches, count, patternCorners, screenCorners, homo3x3, matchMask) {
   * https://github.com/rexagod/matcher-core/blob/b47f3b0e63bcbd8931b1503d57b926915049f4d6/assets/utils/orb.findTransform.js#L3
 
