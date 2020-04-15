@@ -1879,7 +1879,7 @@ Scrollgraph = async function Scrollgraph(options) {
   }
 
   // Prefer camera resolution nearest to 1280x720.
-  options.camera = options.camera || { audio: false, video: { width: 800, height: 600 } }; 
+  options.camera = options.camera || { audio: false, video: { width: 800, height: 600, facingMode: "environment" } }; 
 
   navigator.mediaDevices.getUserMedia(options.camera)
   .then(function(mediaStream) {
