@@ -1740,6 +1740,7 @@ module.exports = async function addImage(options, img1, img2, ctx) {
 
   if (img1 instanceof String) img1 = await loadImage(img1);
   if (img2 instanceof String) img2 = await loadImage(img2);
+  if (options.debug) console.log('start match');
 
   var matcher = new Matcher(img1, img2,
     async function onMatches(q) {
@@ -1749,24 +1750,36 @@ module.exports = async function addImage(options, img1, img2, ctx) {
       if (options.debug) console.log("points found", res);
       var points = util.sortByConfidence(res.matched_points);
       points = util.correctPoints(points, options.srcWidth);
-      // pointsWithOffset(points, options.canvasOffset);
       //var angle = util.findAngle(points[0], points[1]);
       // this offset will only work for translation, not rotation
-      var offsets = [];
-      var minConfidence = 100;
-      function filterPoints(_points) {
-        if (_points.confidence.c1 > minConfidence && _points.confidence.c2) offsets.push(util.getOffset(_points));
+
+      var offsets = [],
+          selectedPoints = [];
+      options.minConfidence = options.minConfidence || 100;
+      options.maxPointsCount = options.maxPointsCount || 4;
+      options.minPointsCount = options.minPointsCount || 2;
+
+      function filterPoints(_pair) {
+        if (_pair.confidence.c1 > options.minConfidence && _pair.confidence.c2 > options.minConfidence) {
+          offsets.push(util.getOffset(_pair));
+          selectedPoints.push(_pair);
+        }
       }
-      filterPoints(points[0]);
-      filterPoints(points[1]);
-      filterPoints(points[2]);
-      filterPoints(points[3]);
-console.log(offsets.length + ' points added');
 
+      for (var i = 0; i < options.maxPointsCount && i < points.length; i++) {
+        filterPoints(points[i]);
+      }
       var offset = util.averageOffsets(offsets);
+      console.log(offsets.length + ' points, offset:', offset);
 
-      drawImage(ctx, img2.src, util.sumOffsets(offset, options.canvasOffset));
-      if (options.debug) require('./debug/annotate.js')(points, ctx);
+      var accepted = selectedPoints.length >= options.minPointsCount;
+      if (accepted) {
+        // we update the overall canvas offset to center on this image
+        options.canvasOffset = util.sumOffsets(offset, options.canvasOffset);
+        drawImage(ctx, img2.src, options.canvasOffset);
+      }
+      // resolve(accepted); // not sure of syntax...
+      if (options.debug) require('./debug/annotate.js')(selectedPoints, ctx, util.sumOffsets(offset, options.canvasOffset));
     },
     {
       browser: true,
@@ -1805,13 +1818,32 @@ module.exports = function createCanvas(options) {
 }
 
 },{}],23:[function(require,module,exports){
-function annotate(points, ctx) {
+function annotate(points, ctx, offset) {
   setTimeout(function() {
 
     ctx.font = '14px sans';
     ctx.globalAlpha = 1;
  
-    points.forEach(function(p, i) {
+    points.forEach(markPoints);
+
+    function markPoints(p, i) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.strokeStyle = 'red';
+ 
+      // first circle adjusted
+      ctx.arc(p.x1 + offset.x, p.y1 + offset.y, 6, 0, Math.PI*2);
+      ctx.stroke();
+ 
+      // label
+      //ctx.fillText(i+'/'+parseInt(p.confidence.c1+p.confidence.c2), p.x1, p.y1);
+      //ctx.fill();
+ 
+      ctx.restore();
+    }
+
+    // this was for displaying 2 images side by side, 800px offset
+    function sidebyside(p, i) {
       ctx.save();
       ctx.beginPath();
  
@@ -1836,7 +1868,8 @@ function annotate(points, ctx) {
       ctx.fill();
  
       ctx.restore();
-    });
+    }
+
   },2500)
 }
 module.exports = annotate;
@@ -1873,13 +1906,20 @@ Scrollgraph = async function Scrollgraph(options) {
       addImage = require('./addImage.js');
 
   var ctx = createCanvas(options);
+  options.delay = options.delay || 1000;
+  options.srcWidth = options.srcWidth || 800;
+  options.srcHeight = options.srcHeight || 600; 
   options.canvasOffset = options.canvasOffset || {
     x: options.width/2 - options.srcWidth/2,
     y: options.height/2 - options.srcHeight/2
   }
 
   // Prefer camera resolution nearest to 1280x720.
-  options.camera = options.camera || { audio: false, video: { width: 800, height: 600, facingMode: "environment" } }; 
+  options.camera = options.camera || { audio: false, video: { 
+    width: options.srcWidth,
+    height: options.srcHeight, 
+    facingMode: "environment"
+  } }; 
 
   navigator.mediaDevices.getUserMedia(options.camera)
   .then(function(mediaStream) {
@@ -1893,26 +1933,38 @@ Scrollgraph = async function Scrollgraph(options) {
   var prevImg;
   var video = document.querySelector('video');
   var isFirst = true;
-  delay = 1000;
-  setTimeout(placeImage, delay);
+  setTimeout(placeImage, options.delay + 1000);
 
   // run this each time we get a new image
   function placeImage() {
     window.requestAnimationFrame(async function onFrame() {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        let img = await require('./videoToImage')(video);
         if (isFirst) {
+          // insert initial delay to allow camera to reach stable exposure
+          await delay(1000);
+          let img = await require('./videoToImage')(video);
           prevImg = await drawImage(ctx, img.src, options.canvasOffset);
           isFirst = false;
+          setTimeout(placeImage, options.delay);
         } else {
-          addImage(options, prevImg, img, ctx);
-          prevImg = img; // we may want to make this contingent on whether the image was added
+          let img = await require('./videoToImage')(video);
+          addImage(options, prevImg, img, ctx).then(function(response) {
+            console.log('completed match process', response);
+            setTimeout(placeImage, options.delay);
+            prevImg = img;
+          });
         }
+      } else {
+        setTimeout(placeImage, 100); // retry
       }
-      setTimeout(placeImage, delay);
     });
   }
 
+}
+
+// https://www.pentarem.com/blog/how-to-use-settimeout-with-async-await-in-javascript/
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 },{"../node_modules/matcher-core/src/orb.core.js":18,"./addImage.js":21,"./createCanvas.js":22,"./drawImage.js":24,"./util.js":26,"./videoToImage":27}],26:[function(require,module,exports){

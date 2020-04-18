@@ -4,16 +4,21 @@ Create high res images by scrolling around at low res in video.
 
 ============
 
-TODO now:
+TODO:
 
-X make initial display of 2 images with interest points circled in blue and red
-X figure out weird offset ratios
-X fix them
+x start tracking points we use with circles
+* try tweaking thresholds, averaging techniques
+* discard images with no matches
+* try matching only against first image? 
+* try discarding outliers with RANSAC?
+* adjust to be largest square possible
+* save previous images and fall back if no matches on last 2
 
-* trace startup sequence to see why it's getting stuck
 
 * use function findTransform(matches, count, patternCorners, screenCorners, homo3x3, matchMask) {
   * https://github.com/rexagod/matcher-core/blob/b47f3b0e63bcbd8931b1503d57b926915049f4d6/assets/utils/orb.findTransform.js#L3
+
+* begin to isolate into: 1) find points per image, 2) find matches, and 3) placement
 
 =============
 
@@ -22,12 +27,9 @@ Reference implementation: https://github.com/publiclab/Leaflet.DistortableImage/
 
 x create a canvas
 x be able to insert an image onto it
-* store previous image in a stack, n deep, and x,y location
-* be able to fetch current canvas as an image (as a fallback)
-* use Matcher to find matches
-
-Setup
-
+x store previous image in a stack, n deep, and x,y location
+x be able to fetch current canvas as an image (as a fallback)
+x use Matcher to find matches
 X get canvas working with dummy image
 X get matcher working with 2 images
 

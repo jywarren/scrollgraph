@@ -1,10 +1,29 @@
-function annotate(points, ctx) {
+function annotate(points, ctx, offset) {
   setTimeout(function() {
 
     ctx.font = '14px sans';
     ctx.globalAlpha = 1;
  
-    points.forEach(function(p, i) {
+    points.forEach(markPoints);
+
+    function markPoints(p, i) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.strokeStyle = 'red';
+ 
+      // first circle adjusted
+      ctx.arc(p.x1 + offset.x, p.y1 + offset.y, 6, 0, Math.PI*2);
+      ctx.stroke();
+ 
+      // label
+      //ctx.fillText(i+'/'+parseInt(p.confidence.c1+p.confidence.c2), p.x1, p.y1);
+      //ctx.fill();
+ 
+      ctx.restore();
+    }
+
+    // this was for displaying 2 images side by side, 800px offset
+    function sidebyside(p, i) {
       ctx.save();
       ctx.beginPath();
  
@@ -29,7 +48,8 @@ function annotate(points, ctx) {
       ctx.fill();
  
       ctx.restore();
-    });
+    }
+
   },2500)
 }
 module.exports = annotate;

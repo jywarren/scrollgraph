@@ -13,15 +13,21 @@
   </head>
   <body>
     <canvas style="width:75%;" id="canvas"></canvas>
-    <video style="display:none; opacity: 0.5; position:absolute; right: 50px; top: 50px;width: 800px;" autoplay></video>
+    <video style="opacity: 0.5; position:absolute; bottom: 50px; width: 640px;" autoplay></video>
   </body>
   <script>
+    (function() {
     var scrollgraph = Scrollgraph({
-      debug: false,
+      debug: true,
+      minConfidence: 100, // minimum score a matched pair must have (both c1 and c2) to be used 
+      maxPointsCount: 4, // max matched points used per image
+      minPointsCount: 2, // min matched points required per image
+      delay: 2000,
       width: 1600,
       height: 1600,
-      srcWidth: 800,
-      srcHeight: 600
+      srcWidth: 640,
+      srcHeight: 480
     });
+    })();
   </script>
 </html>
