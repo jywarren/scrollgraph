@@ -4,6 +4,28 @@ Create high res images by scrolling around at low res in video.
 
 ============
 
+Starting over;
+
+* [x] get jsfeat demo working
+* [x] refactor into separate modules
+* [ ] get it working again
+  * [ ] `pattern_preview` is not getting reported back
+* [ ] refactor `train_pattern()` to accept new image/vid input
+* [ ] externalize `match()` to be run in scrollgraph?
+
+
+
+
+
+
+
+
+
+
+
+
+=========
+
 TODO:
 
 x start tracking points we use with circles
