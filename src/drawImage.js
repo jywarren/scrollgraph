@@ -1,21 +1,37 @@
 module.exports = function drawImage(ctx, src, offset) {
   offset = offset || {x: 0, y: 0};
   return new Promise((resolve, reject) => {
-    let img = new Image()
-    img.onload = () => {
+    // if it's a video, just pass it along, skipping onLoad
+    if (src instanceof String) {
+      let img = new Image()
+      img.onload = () => {
+        ctx.globalAlpha = 0.5;
+        ctx.drawImage(
+          img,
+          0, 0,
+          img.width,
+          img.height,
+          offset.x,
+          offset.y,
+          img.width,
+          img.height
+        );
+        resolve(img)
+      }
+      img.src = src;
+    } else {
       ctx.globalAlpha = 0.5;
       ctx.drawImage(
-        img,
+        src,
         0, 0,
-        img.width || img.videoWidth,
-        img.height || img.videoWidth,
+        src.videoWidth,
+        src.videoHeight,
         offset.x,
         offset.y,
-        img.width,
-        img.height
+        src.videoWidth,
+        src.videoHeight
       );
-      resolve(img)
+      resolve(src)
     }
-    img.src = src;
   });
 }

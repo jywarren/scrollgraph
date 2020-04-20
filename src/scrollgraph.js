@@ -42,16 +42,20 @@ Scrollgraph = async function Scrollgraph(options) {
         if (isFirst) {
           // insert initial delay to allow camera to reach stable exposure
           await delay(1000);
-          let img = await require('./videoToImage')(video);
-          prevImg = await drawImage(ctx, img.src, options.canvasOffset);
+//          let img = await require('./videoToImage')(video);
+          prevImg = video;
+drawImage(ctx, video, options.canvasOffset);
+//          prevImg = await drawImage(ctx, img.src, options.canvasOffset);
           isFirst = false;
           setTimeout(placeImage, options.delay);
         } else {
-          let img = await require('./videoToImage')(video);
-          addImage(options, prevImg, img, ctx).then(function(response) {
+//          let img = await require('./videoToImage')(video);
+          addImage(options, prevImg, video, ctx).then(function(response) {
+          //addImage(options, prevImg, img, ctx).then(function(response) {
             console.log('completed match process', response);
-            setTimeout(placeImage, options.delay);
-            prevImg = img;
+            setTimeout(placeImage, 0);//options.delay);
+//            prevImg = img;
+            prevImg = video;
           });
         }
       } else {

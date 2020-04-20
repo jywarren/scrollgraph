@@ -260,6 +260,10 @@ const orbify = function(X, Y, cb, args = {}) {
   const canvas = document.createElement('CANVAS'),
     c = document.createElement('CANVAS');
 
+// temp:
+  var primaryImage = X;
+  var secImage = Y;
+/*
   if (X instanceof Image) var primaryImage = X;
   else {
     primaryImage = new Image();
@@ -270,6 +274,7 @@ const orbify = function(X, Y, cb, args = {}) {
     secImage = new Image();
     secImage.src = Y;
   }
+*/
 
   let options,
     matchesArray = [],
@@ -351,12 +356,12 @@ const orbify = function(X, Y, cb, args = {}) {
           maxPerLevel = 300,
           scInc = Math.sqrt(2.0),
           ctxx = c.getContext('2d'),
-          imgData = ctxx.getImageData(
-              0,
-              0,
-              primaryImage.width,
-              primaryImage.height
-          ),
+//          imgData = ctxx.getImageData(
+//              0,
+//              0,
+//              primaryImage.width,
+//              primaryImage.height
+//          ),
           imgg = new jsfeat.matrix_t(
               primaryImage.width,
               primaryImage.height,
@@ -412,7 +417,8 @@ const orbify = function(X, Y, cb, args = {}) {
         levDescriptors = patternDescriptors[0];
 
         jsfeat.imgproc.grayscale(
-            imgData.data,
+            //imgData.data,
+            lev0Img,
             primaryImage.width,
             primaryImage.height,
             imgg
@@ -484,7 +490,6 @@ const orbify = function(X, Y, cb, args = {}) {
 
       const primaryImageData = ctx.getImageData(0, 0, self.args.dimensions[0], self.args.dimensions[1]);
 
-      ctx.putImageData(primaryImageData, 0, 0);
       ctx.drawImage(secImage, 0, 0, self.args.dimensions[0], self.args.dimensions[1]);
 
       jsfeat.imgproc.grayscale(primaryImageData.data, self.args.dimensions[0], self.args.dimensions[1], imgU8);
@@ -509,6 +514,8 @@ const orbify = function(X, Y, cb, args = {}) {
           screenCorners,
           numCorners
       );
+
+      ctx.putImageData(primaryImageData, 0, 0);
     }
 
     async function findMatchedPoints() {
@@ -1878,22 +1885,38 @@ module.exports = annotate;
 module.exports = function drawImage(ctx, src, offset) {
   offset = offset || {x: 0, y: 0};
   return new Promise((resolve, reject) => {
-    let img = new Image()
-    img.onload = () => {
+    // if it's a video, just pass it along, skipping onLoad
+    if (src instanceof String) {
+      let img = new Image()
+      img.onload = () => {
+        ctx.globalAlpha = 0.5;
+        ctx.drawImage(
+          img,
+          0, 0,
+          img.width,
+          img.height,
+          offset.x,
+          offset.y,
+          img.width,
+          img.height
+        );
+        resolve(img)
+      }
+      img.src = src;
+    } else {
       ctx.globalAlpha = 0.5;
       ctx.drawImage(
-        img,
+        src,
         0, 0,
-        img.width || img.videoWidth,
-        img.height || img.videoWidth,
+        src.videoWidth,
+        src.videoHeight,
         offset.x,
         offset.y,
-        img.width,
-        img.height
+        src.videoWidth,
+        src.videoHeight
       );
-      resolve(img)
+      resolve(src)
     }
-    img.src = src;
   });
 }
 
@@ -1942,16 +1965,20 @@ Scrollgraph = async function Scrollgraph(options) {
         if (isFirst) {
           // insert initial delay to allow camera to reach stable exposure
           await delay(1000);
-          let img = await require('./videoToImage')(video);
-          prevImg = await drawImage(ctx, img.src, options.canvasOffset);
+//          let img = await require('./videoToImage')(video);
+          prevImg = video;
+drawImage(ctx, video, options.canvasOffset);
+//          prevImg = await drawImage(ctx, img.src, options.canvasOffset);
           isFirst = false;
           setTimeout(placeImage, options.delay);
         } else {
-          let img = await require('./videoToImage')(video);
-          addImage(options, prevImg, img, ctx).then(function(response) {
+//          let img = await require('./videoToImage')(video);
+          addImage(options, prevImg, video, ctx).then(function(response) {
+          //addImage(options, prevImg, img, ctx).then(function(response) {
             console.log('completed match process', response);
-            setTimeout(placeImage, options.delay);
-            prevImg = img;
+            setTimeout(placeImage, 0);//options.delay);
+//            prevImg = img;
+            prevImg = video;
           });
         }
       } else {
@@ -1967,7 +1994,7 @@ function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-},{"../node_modules/matcher-core/src/orb.core.js":18,"./addImage.js":21,"./createCanvas.js":22,"./drawImage.js":24,"./util.js":26,"./videoToImage":27}],26:[function(require,module,exports){
+},{"../node_modules/matcher-core/src/orb.core.js":18,"./addImage.js":21,"./createCanvas.js":22,"./drawImage.js":24,"./util.js":26}],26:[function(require,module,exports){
 module.exports = function util(options) {
 
   // adjust points from pattern-matching 512x512 pixel space (with its oddities and ambiguities)

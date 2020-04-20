@@ -8,11 +8,17 @@ TODO:
 
 x start tracking points we use with circles
 * try tweaking thresholds, averaging techniques
-* discard images with no matches
+x discard images with no matches
 * try matching only against first image? 
 * try discarding outliers with RANSAC?
 * adjust to be largest square possible
 * save previous images and fall back if no matches on last 2
+
+* compare to high speed of https://votingworks.github.io/jsfeat/sample_orb.html
+  * reduce delay time
+  * audit each cycle?
+  * it wasn't they pyramid code
+  * try matching in isolation
 
 
 * use function findTransform(matches, count, patternCorners, screenCorners, homo3x3, matchMask) {
