@@ -3,47 +3,6 @@ module.exports = function setupMatcher(video, ctx, options) {
 
 options.num_train_levels = options.num_train_levels || 4;
 
-/* ATTEMPT TO DO THIS EXTERNALLY 
-var video = document.getElementById('webcam');
-
-try {
-  var attempts = 0;
-  var readyListener = function(event) {
-    findVideoSize();
-  };
-  var findVideoSize = function() {
-    if (video.videoWidth > 0 && video.videoHeight > 0) {
-      video.removeEventListener('loadeddata', readyListener);
-      onDimensionsReady(video.videoWidth, video.videoHeight);
-    } else {
-      if (attempts < 10) {
-        attempts++;
-        setTimeout(findVideoSize, 200);
-      } else {
-        onDimensionsReady(640, 480);
-      }
-    }
-  };
-  var onDimensionsReady = function(width, height) {
-    demo_app(width, height);
-    compatibility.requestAnimationFrame(draw);
-  };
-
-  video.addEventListener('loadeddata', readyListener);
-
-  compatibility.getUserMedia({video: true}, function(stream) {
-    video.srcObject = stream;
-    setTimeout(function() {
-      video.play();
-    }, 500);
-  }, function (error) {
-    console.log('WebRTC not available.');
-  });
-} catch (error) {
-  console.log('Something goes wrong...');
-}
-*/
-
 initialize(options.srcWidth, options.srcHeight);
 compatibility.requestAnimationFrame(match);
 
@@ -69,6 +28,7 @@ let train_pattern = require('./jsfeat/trainPattern.js')(
   pattern_preview,
   pattern_descriptors,
   pattern_corners,
+  ctx,
   options);
 
 function initialize(videoWidth, videoHeight) {
@@ -123,7 +83,7 @@ function initialize(videoWidth, videoHeight) {
 
 function train(img) {
   // later, do something with img
-  pattern_preview = train_pattern().pattern_preview;
+  pattern_preview = train_pattern(img).pattern_preview;
 }
 
 // requires: img_u8, img_u8_smooth, options, screen_corners, num_corners, screen_descriptors, pattern_preview, matches, homo3x3
@@ -161,7 +121,7 @@ function match() {
 
       // get the projected pattern corners
       shape_pts = require('./jsfeat/tCorners.js')(homo3x3.data, pattern_preview.cols*2, pattern_preview.rows*2);
-console.log('shape_pts', shape_pts);
+
     }
 
     // ctx.putImageData(imageData, 0, 0); // to draw on the canvas

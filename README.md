@@ -8,11 +8,10 @@ Starting over;
 
 * [x] get jsfeat demo working
 * [x] refactor into separate modules
-* [ ] get it working again
-  * [ ] `pattern_preview` is not getting reported back
-* [ ] refactor `train_pattern()` to accept new image/vid input
-* [ ] externalize `match()` to be run in scrollgraph?
-
+* [x] get it working again
+* [x] externalize `match()` to be run in scrollgraph?
+* [x] refactor `train_pattern()` to accept new image/vid input
+* [ ] clarify number of good matches as acceptance trigger
 
 
 

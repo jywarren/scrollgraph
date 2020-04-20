@@ -1,8 +1,7 @@
 // refactor this to accept an image/video?
-module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_preview, pattern_descriptors, pattern_corners, options) {
+module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_preview, pattern_descriptors, pattern_corners, ctx, options) {
   // exposed closure
-  return function train_pattern() {
-console.log('train pattern');
+  return function train_pattern(newImg) {
     let detect_keypoints = require('./detectKeypoints.js');
 
     var lev=0, i=0;
@@ -20,11 +19,11 @@ console.log('train pattern');
     new_width = (img_u8.cols*sc0)|0;
     new_height = (img_u8.rows*sc0)|0;
 
-// TODO: insert greyscale so we can place new image data?
-//    ctx.drawImage(video, 0, 0, 640, 480); // draw incoming image to canvas
-//    var imageData = ctx.getImageData(0, 0, 640, 480); // get it as imageData
-//    // start processing new image
-//    jsfeat.imgproc.grayscale(imageData.data, 640, 480, img_u8);
+    // insert greyscale so we can place new image data
+    ctx.drawImage(newImg, 0, 0, 640, 480); // draw incoming image to canvas
+    var imageData = ctx.getImageData(0, 0, 640, 480); // get it as imageData
+    // start processing new image
+    jsfeat.imgproc.grayscale(imageData.data, 640, 480, img_u8);
  
     jsfeat.imgproc.resample(img_u8, lev0_img, new_width, new_height);
  

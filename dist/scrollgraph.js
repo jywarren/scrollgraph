@@ -1224,7 +1224,7 @@ function loadImage(src) {
   });
 }
 
-},{"../../matcher-core/src/orb.core.js":9,"./debug/annotate.js":14,"./drawImage.js":15,"./util.js":30}],13:[function(require,module,exports){
+},{"../../matcher-core/src/orb.core.js":9,"./debug/annotate.js":14,"./drawImage.js":16,"./util.js":31}],13:[function(require,module,exports){
 module.exports = function createCanvas(options) {
   var ctx, canvas, height, width;
   options.canvasId = options.canvasId || "canvas";
@@ -1298,6 +1298,25 @@ function annotate(points, ctx, offset) {
 module.exports = annotate;
 
 },{}],15:[function(require,module,exports){
+module.exports = function defaults(options) {
+  options.delay = options.delay || 1000;
+  options.annotations = options.annotations || true;
+  options.srcWidth = options.srcWidth || 800;
+  options.srcHeight = options.srcHeight || 600; 
+  options.canvasOffset = options.canvasOffset || {
+    x: options.width/2 - options.srcWidth/2,
+    y: options.height/2 - options.srcHeight/2
+  }
+  // Prefer camera resolution nearest to 1280x720.
+  options.camera = options.camera || { audio: false, video: { 
+    width: options.srcWidth,
+    height: options.srcHeight, 
+    facingMode: "environment"
+  } }; 
+  return options;
+}
+
+},{}],16:[function(require,module,exports){
 module.exports = function drawImage(ctx, src, offset) {
   offset = offset || {x: 0, y: 0};
   return new Promise((resolve, reject) => {
@@ -1320,7 +1339,7 @@ module.exports = function drawImage(ctx, src, offset) {
   });
 }
 
-},{}],16:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 module.exports = function annotate_image(ctx, imageData, matches, num_matches, num_corners, good_matches, screen_corners, pattern_corners, shape_pts, pattern_preview, match_mask) {
   let render_pattern_shape = require('./renderPatternShape.js'); 
   let render_corners = require('./renderCorners.js'); 
@@ -1344,7 +1363,7 @@ module.exports = function annotate_image(ctx, imageData, matches, num_matches, n
   }
 }
 
-},{"./renderCorners.js":22,"./renderMatches.js":23,"./renderMonoImage.js":24,"./renderPatternShape.js":25}],17:[function(require,module,exports){
+},{"./renderCorners.js":23,"./renderMatches.js":24,"./renderMonoImage.js":25,"./renderPatternShape.js":26}],18:[function(require,module,exports){
 module.exports = function detect_keypoints(img, corners, max_allowed) {
   let ic_angle = require('./icAngle.js');
 
@@ -1365,7 +1384,7 @@ module.exports = function detect_keypoints(img, corners, max_allowed) {
   return count;
 }
 
-},{"./icAngle.js":19}],18:[function(require,module,exports){
+},{"./icAngle.js":20}],19:[function(require,module,exports){
 // estimate homography transform between matched points
 module.exports = function find_transform(matches, count, screen_corners, pattern_corners, homo3x3, match_mask) {
   // motion kernel
@@ -1414,7 +1433,7 @@ module.exports = function find_transform(matches, count, screen_corners, pattern
   return good_cnt;
 }
 
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 // central difference using image moments to find dominant orientation
 var u_max = new Int32Array([15,15,15,15,14,14,14,13,13,12,11,10,9,8,6,3,0]);
 module.exports = function ic_angle(img, px, py) {
@@ -1445,7 +1464,7 @@ module.exports = function ic_angle(img, px, py) {
   return Math.atan2(m_01, m_10);
 }
 
-},{}],20:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 // naive brute-force matching.
 // each on screen point is compared to all pattern points
 // to find the closest match
@@ -1515,7 +1534,7 @@ module.exports = function match_pattern(screen_descriptors, pattern_descriptors,
   return num_matches;
 }
 
-},{"./popcnt32.js":21}],21:[function(require,module,exports){
+},{"./popcnt32.js":22}],22:[function(require,module,exports){
 // non zero bits count
 module.exports = function popcnt32(n) {
   n -= ((n >> 1) & 0x55555555);
@@ -1523,7 +1542,7 @@ module.exports = function popcnt32(n) {
   return (((n + (n >> 4))& 0xF0F0F0F)* 0x1010101) >> 24;
 }
 
-},{}],22:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 // draws tiny +s on the canvas where there are corners
 module.exports = function render_corners(corners, count, img, step) {
   var pix = (0xff << 24) | (0x00 << 16) | (0xff << 8) | 0x00;
@@ -1539,7 +1558,7 @@ module.exports = function render_corners(corners, count, img, step) {
   }
 }
 
-},{}],23:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 module.exports = function render_matches(ctx, matches, count, screen_corners, pattern_corners, match_mask) {
   for(var i = 0; i < count; ++i) {
     var m = matches[i];
@@ -1558,7 +1577,7 @@ module.exports = function render_matches(ctx, matches, count, screen_corners, pa
   }
 }
 
-},{}],24:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 module.exports = function render_mono_image(src, dst, sw, sh, dw) {
   var alpha = (0xff << 24);
   for(var i = 0; i < sh; ++i) {
@@ -1569,7 +1588,7 @@ module.exports = function render_mono_image(src, dst, sw, sh, dw) {
   }
 }
 
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 module.exports = function render_pattern_shape(ctx, shape_pts) {
   ctx.strokeStyle = "rgb(0,255,0)";
   ctx.beginPath();
@@ -1584,7 +1603,7 @@ module.exports = function render_pattern_shape(ctx, shape_pts) {
   ctx.stroke();
 }
 
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 // project/transform rectangle corners with 3x3 Matrix
 module.exports = function tCorners(M, w, h) {
   var pt = [ {'x':0,'y':0}, {'x':w,'y':0}, {'x':w,'y':h}, {'x':0,'y':h} ];
@@ -1601,12 +1620,11 @@ module.exports = function tCorners(M, w, h) {
   return pt;
 }
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 // refactor this to accept an image/video?
-module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_preview, pattern_descriptors, pattern_corners, options) {
+module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_preview, pattern_descriptors, pattern_corners, ctx, options) {
   // exposed closure
-  return function train_pattern() {
-console.log('train pattern');
+  return function train_pattern(newImg) {
     let detect_keypoints = require('./detectKeypoints.js');
 
     var lev=0, i=0;
@@ -1624,11 +1642,11 @@ console.log('train pattern');
     new_width = (img_u8.cols*sc0)|0;
     new_height = (img_u8.rows*sc0)|0;
 
-// TODO: insert greyscale so we can place new image data?
-//    ctx.drawImage(video, 0, 0, 640, 480); // draw incoming image to canvas
-//    var imageData = ctx.getImageData(0, 0, 640, 480); // get it as imageData
-//    // start processing new image
-//    jsfeat.imgproc.grayscale(imageData.data, 640, 480, img_u8);
+    // insert greyscale so we can place new image data
+    ctx.drawImage(newImg, 0, 0, 640, 480); // draw incoming image to canvas
+    var imageData = ctx.getImageData(0, 0, 640, 480); // get it as imageData
+    // start processing new image
+    jsfeat.imgproc.grayscale(imageData.data, 640, 480, img_u8);
  
     jsfeat.imgproc.resample(img_u8, lev0_img, new_width, new_height);
  
@@ -1693,132 +1711,48 @@ console.log('train pattern');
   }
 };
 
-},{"./detectKeypoints.js":17}],28:[function(require,module,exports){
+},{"./detectKeypoints.js":18}],29:[function(require,module,exports){
 Scrollgraph = function Scrollgraph(options) {
-  var drawImage = require('./drawImage.js');
-  var matcher,
+  var drawImage = require('./drawImage.js'),
+      matcher,
       video = document.querySelector('video');
   let createCanvas = require('./createCanvas.js'),
       util = require('./util.js')(options),
       addImage = require('./addImage.js');
   var ctx = createCanvas(options);
 
-// REFACTOR into defaults.js
-  options.delay = options.delay || 1000;
-  options.annotations = options.annotations || true;
-  options.srcWidth = options.srcWidth || 800;
-  options.srcHeight = options.srcHeight || 600; 
-  options.canvasOffset = options.canvasOffset || {
-    x: options.width/2 - options.srcWidth/2,
-    y: options.height/2 - options.srcHeight/2
-  }
-  // Prefer camera resolution nearest to 1280x720.
-  options.camera = options.camera || { audio: false, video: { 
-    width: options.srcWidth,
-    height: options.srcHeight, 
-    facingMode: "environment"
-  } }; 
+  options = require('./defaults.js')(options);
 
   return new Promise(function(resolve, reject) { 
 
-// BEGIN refactor into video handler submodule
+    navigator.mediaDevices.getUserMedia(options.camera)
+    .then(function(mediaStream) {
+      video.srcObject = mediaStream;
+      video.onloadedmetadata = function(e) {
+        video.play();
+      };
+      matcher = require('./setupMatcher.js')(video, ctx, options); // initialize matcher and pass in the video element
 
-  navigator.mediaDevices.getUserMedia(options.camera)
-  .then(function(mediaStream) {
-    video.srcObject = mediaStream;
-    video.onloadedmetadata = function(e) {
-      video.play();
-    };
-    matcher = require('./setupMatcher.js')(video, ctx, options); // initialize matcher and pass in the video element
-    resolve(matcher);
-  })
-  .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
+      // start by matching against first
+      matcher.train(video);
 
-// END refactor into video handler init script
+      // move loop logic out here
+      matcher.match(video);
+
+
+      // pass out the API so people can use it externally
+      resolve(matcher);
+    })
+    .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
 
   });
-
-/**
-  var prevImg;
-  var isFirst = true;
-
-  // startup
-  setTimeout(placeImage, options.delay + 1000);
-
-  // run this each time we get a new image
-  function placeImage() {
-    window.requestAnimationFrame(async function onFrame() {
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        if (isFirst) {
-          // insert initial delay to allow camera to reach stable exposure
-          await utils.delay(1000);
-          let img = await require('./videoToImage')(video);
-          prevImg = await drawImage(ctx, img.src, options.canvasOffset);
-          isFirst = false;
-          setTimeout(placeImage, options.delay);
-        } else {
-          let img = await require('./videoToImage')(video);
-          addImage(options, prevImg, img, ctx).then(function(response) {
-            console.log('completed match process', response);
-            setTimeout(placeImage, options.delay);
-            prevImg = img;
-          });
-        }
-      } else {
-        setTimeout(placeImage, 100); // retry until we get video.readyState == 4
-      }
-    });
-  }
-*/
-
 }
 
-},{"./addImage.js":12,"./createCanvas.js":13,"./drawImage.js":15,"./setupMatcher.js":29,"./util.js":30}],29:[function(require,module,exports){
+},{"./addImage.js":12,"./createCanvas.js":13,"./defaults.js":15,"./drawImage.js":16,"./setupMatcher.js":30,"./util.js":31}],30:[function(require,module,exports){
 "use strict";
 module.exports = function setupMatcher(video, ctx, options) {
 
 options.num_train_levels = options.num_train_levels || 4;
-
-/* ATTEMPT TO DO THIS EXTERNALLY 
-var video = document.getElementById('webcam');
-
-try {
-  var attempts = 0;
-  var readyListener = function(event) {
-    findVideoSize();
-  };
-  var findVideoSize = function() {
-    if (video.videoWidth > 0 && video.videoHeight > 0) {
-      video.removeEventListener('loadeddata', readyListener);
-      onDimensionsReady(video.videoWidth, video.videoHeight);
-    } else {
-      if (attempts < 10) {
-        attempts++;
-        setTimeout(findVideoSize, 200);
-      } else {
-        onDimensionsReady(640, 480);
-      }
-    }
-  };
-  var onDimensionsReady = function(width, height) {
-    demo_app(width, height);
-    compatibility.requestAnimationFrame(draw);
-  };
-
-  video.addEventListener('loadeddata', readyListener);
-
-  compatibility.getUserMedia({video: true}, function(stream) {
-    video.srcObject = stream;
-    setTimeout(function() {
-      video.play();
-    }, 500);
-  }, function (error) {
-    console.log('WebRTC not available.');
-  });
-} catch (error) {
-  console.log('Something goes wrong...');
-}
-*/
 
 initialize(options.srcWidth, options.srcHeight);
 compatibility.requestAnimationFrame(match);
@@ -1845,6 +1779,7 @@ let train_pattern = require('./jsfeat/trainPattern.js')(
   pattern_preview,
   pattern_descriptors,
   pattern_corners,
+  ctx,
   options);
 
 function initialize(videoWidth, videoHeight) {
@@ -1899,7 +1834,7 @@ function initialize(videoWidth, videoHeight) {
 
 function train(img) {
   // later, do something with img
-  pattern_preview = train_pattern().pattern_preview;
+  pattern_preview = train_pattern(img).pattern_preview;
 }
 
 // requires: img_u8, img_u8_smooth, options, screen_corners, num_corners, screen_descriptors, pattern_preview, matches, homo3x3
@@ -1937,7 +1872,7 @@ function match() {
 
       // get the projected pattern corners
       shape_pts = require('./jsfeat/tCorners.js')(homo3x3.data, pattern_preview.cols*2, pattern_preview.rows*2);
-console.log('shape_pts', shape_pts);
+
     }
 
     // ctx.putImageData(imageData, 0, 0); // to draw on the canvas
@@ -1967,7 +1902,7 @@ return {
 
 }
 
-},{"./jsfeat/annotateImage.js":16,"./jsfeat/detectKeypoints.js":17,"./jsfeat/findTransform.js":18,"./jsfeat/icAngle.js":19,"./jsfeat/matchPattern.js":20,"./jsfeat/tCorners.js":26,"./jsfeat/trainPattern.js":27}],30:[function(require,module,exports){
+},{"./jsfeat/annotateImage.js":17,"./jsfeat/detectKeypoints.js":18,"./jsfeat/findTransform.js":19,"./jsfeat/icAngle.js":20,"./jsfeat/matchPattern.js":21,"./jsfeat/tCorners.js":27,"./jsfeat/trainPattern.js":28}],31:[function(require,module,exports){
 module.exports = function util(options) {
 
   // https://www.pentarem.com/blog/how-to-use-settimeout-with-async-await-in-javascript/
@@ -2039,7 +1974,7 @@ module.exports = function util(options) {
   }
 }
 
-},{}],31:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 module.exports = function videoToImage(video) {
   const canvas = document.createElement('CANVAS');
   const ctx = canvas.getContext("2d");
@@ -2058,4 +1993,4 @@ module.exports = function videoToImage(video) {
   });
 }
 
-},{}]},{},[12,13,15,28,29,30,31,14,16,17,18,19,20,21,22,23,24,25,26,27]);
+},{}]},{},[12,13,15,16,29,30,31,32,14,17,18,19,20,21,22,23,24,25,26,27,28]);
