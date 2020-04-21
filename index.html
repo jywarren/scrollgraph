@@ -1,33 +1,50 @@
-<!DOCTYPE html>
+<!doctype html>
+
 <html lang="en">
   <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
     <title>Scrollgraph</title>
+
+    <link rel="stylesheet" href="https://votingworks.github.io/jsfeat/css/jsfeat.css">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="node_modules/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="node_modules/font-awesome/css/font-awesome.min.css" rel="stylesheet">
-    <link href="dist/scrollgraph.css" rel="stylesheet">
-    <script src="node_modules/jquery/dist/jquery.min.js"></script>
-    <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
-    <script src="node_modules/bootstrap/dist/js/bootstrap.min.js"></script>
-    <script src="dist/scrollgraph.js"></script>
+
   </head>
   <body>
-    <canvas style="width:75%;" id="canvas"></canvas>
-    <video style="opacity: 0.5; position:absolute; bottom: 50px; width: 640px;" autoplay></video>
-  </body>
-  <script>
-    (function() {
-    var scrollgraph = Scrollgraph({
-      debug: true,
-      minConfidence: 100, // minimum score a matched pair must have (both c1 and c2) to be used 
-      maxPointsCount: 4, // max matched points used per image
-      minPointsCount: 2, // min matched points required per image
-      delay: 2000,
-      width: 1600,
-      height: 1600,
-      srcWidth: 640,
-      srcHeight: 480
+    <div style=" width:640px;height:480px;margin: 10px auto;">
+      <canvas id="canvas" width="640" height="480"></canvas>
+    </div>
+    <video id="webcam" width="640" height="480" style="display:none;"></video>
+    <canvas id="workingCanvas" width="640" height="480" style="display:none;"></canvas>
+
+    <script type="text/javascript" src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
+    <script src="node_modules/bootstrap/dist/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="node_modules/jsfeat/build/jsfeat-min.js"></script>
+    <script type="text/javascript" src="lib/compatibility.js"></script>
+    <script src="dist/scrollgraph.js"></script>
+    <script type="text/javascript">
+
+    var scrollgraph;
+    $(window).load(function() {
+      Scrollgraph({
+        debug: true,
+        annotations: true,
+        goodMatchesMin: 10, // default 8
+        num_train_levels: 1, // default 4 but not needed if no resizing happens (as in microscopy)
+        delay: 2000, // try reducing this
+        width: 1600,
+        height: 1600,
+        srcWidth: 640,
+        srcHeight: 480
+      }).then(function(api) {
+        console.log(api);
+        scrollgraph = api; // assign to global so we can play with it
+      });
+
     });
-    })();
-  </script>
+    </script>
+  </body>
 </html>

@@ -1,5 +1,10 @@
 module.exports = function util(options) {
 
+  // https://www.pentarem.com/blog/how-to-use-settimeout-with-async-await-in-javascript/
+  function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
   // adjust points from pattern-matching 512x512 pixel space (with its oddities and ambiguities)
   // to the input image pixel space(s)
   function correctPoints(points, width) {
@@ -54,6 +59,7 @@ module.exports = function util(options) {
   }
 
   return {
+    delay: delay,
     averageOffsets: averageOffsets,
     correctPoints: correctPoints,
     sumOffsets: sumOffsets,

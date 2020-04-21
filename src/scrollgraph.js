@@ -1,68 +1,83 @@
-Scrollgraph = async function Scrollgraph(options) {
-  require('../node_modules/matcher-core/src/orb.core.js');
-  var drawImage = require('./drawImage.js');
+Scrollgraph = function Scrollgraph(options) {
+  var matcher,
+      video = document.querySelector('video');
   let createCanvas = require('./createCanvas.js'),
-      util = require('./util.js')(options),
-      addImage = require('./addImage.js');
+      util = require('./util.js')(options);
+  var ctx = createCanvas('canvas', options);
 
-  var ctx = createCanvas(options);
-  options.delay = options.delay || 1000;
-  options.srcWidth = options.srcWidth || 800;
-  options.srcHeight = options.srcHeight || 600; 
-  options.canvasOffset = options.canvasOffset || {
-    x: options.width/2 - options.srcWidth/2,
-    y: options.height/2 - options.srcHeight/2
-  }
+  options = require('./defaults.js')(options);
 
-  // Prefer camera resolution nearest to 1280x720.
-  options.camera = options.camera || { audio: false, video: { 
-    width: options.srcWidth,
-    height: options.srcHeight, 
-    facingMode: "environment"
-  } }; 
+  return new Promise(function(resolve, reject) { 
 
-  navigator.mediaDevices.getUserMedia(options.camera)
-  .then(function(mediaStream) {
-    video.srcObject = mediaStream;
-    video.onloadedmetadata = function(e) {
-      video.play();
-    };
-  })
-  .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
+    navigator.mediaDevices.getUserMedia(options.camera)
+    .then(function(mediaStream) {
+      video.srcObject = mediaStream;
+      video.onloadedmetadata = function(e) {
+        video.play();
+      };
 
-  var prevImg;
-  var video = document.querySelector('video');
-  var isFirst = true;
-  setTimeout(placeImage, options.delay + 1000);
+      // turn off camera when done
+      $(window).unload(function() {
+        video.pause();
+        video.src = null;
+      });
 
-  // run this each time we get a new image
-  function placeImage() {
-    window.requestAnimationFrame(async function onFrame() {
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        if (isFirst) {
-          // insert initial delay to allow camera to reach stable exposure
-          await delay(1000);
-          let img = await require('./videoToImage')(video);
-          prevImg = await drawImage(ctx, img.src, options.canvasOffset);
-          isFirst = false;
-          setTimeout(placeImage, options.delay);
-        } else {
-          let img = await require('./videoToImage')(video);
-          addImage(options, prevImg, img, ctx).then(function(response) {
-            console.log('completed match process', response);
-            setTimeout(placeImage, options.delay);
-            prevImg = img;
-          });
+      matcher = require('./setupMatcher.js')(options); // initialize matcher and pass in the video element
+
+      // initiate first frame
+      compatibility.requestAnimationFrame(draw);
+
+      // start by matching against first
+      var isFirst = true,
+          offsetX = (options.width / 2) - (options.srcWidth / 2),
+          offsetY = (options.height / 2) - (options.srcHeight / 2);
+
+      function draw() {
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+
+          if (isFirst) {
+            matcher.train(video);
+            ctx.drawImage(video, 
+              offsetX,
+              offsetY,
+              options.srcWidth,
+              options.srcHeight);
+            isFirst = false;
+          } else {
+
+            var results = matcher.match(video);
+
+            if (results.good_matches > options.goodMatchesMin && results.projectedCorners) {
+              console.log('Good match!', results.good_matches);
+ 
+              var avOffset = util.averageOffsets(results.projectedCorners);
+              ctx.drawImage(video,
+                offsetX - avOffset.x + (options.srcWidth / 2),
+                offsetY - avOffset.y + (options.srcHeight / 2),
+                options.srcWidth,
+                options.srcHeight);
+
+              // replace pattern image with newly matched image if 1.5x more good matches
+              //if (results.good_matches > options.goodMatchesMin * 1.5) {
+              //  matcher.train(video);
+                // adjust offset to new origin
+              //  offsetX += avOffset.x - (options.srcWidth / 2);
+              //  offsetY += avOffset.y - (options.srcHeight / 2);
+              //}
+ 
+            }
+          }
+          compatibility.requestAnimationFrame(draw);
+
+        } else { // try over again
+          compatibility.requestAnimationFrame(draw);
         }
-      } else {
-        setTimeout(placeImage, 100); // retry
       }
-    });
-  }
 
-}
+      // pass out the API so people can use it externally
+      resolve(matcher);
+    })
+    .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
 
-// https://www.pentarem.com/blog/how-to-use-settimeout-with-async-await-in-javascript/
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  });
 }

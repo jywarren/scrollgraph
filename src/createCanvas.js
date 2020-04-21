@@ -1,7 +1,7 @@
-module.exports = function createCanvas(options) {
+module.exports = function createCanvas(id, options) {
   var ctx, canvas, height, width;
-  options.canvasId = options.canvasId || "canvas";
-  canvas = document.getElementById(options.canvasId);
+  id = id || "canvas";
+  canvas = document.getElementById(id);
   ctx = canvas.getContext("2d");
   width = options.width || 1000;
   height = options.height || 1000;

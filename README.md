@@ -4,6 +4,34 @@ Create high res images by scrolling around at low res in video.
 
 ============
 
+Starting over;
+
+* [x] get jsfeat demo working
+* [x] refactor into separate modules
+* [x] get it working again
+* [x] externalize `match()` to be run in scrollgraph?
+* [x] refactor `train_pattern()` to accept new image/vid input
+* [x] pass out `good_matches` from `match()` 
+* [x] can we make the multiscale pyramid toggle-able - yes, set `num_train_levels` to 1
+* [x] don't run on each video frame, only when a match is requested?
+    * [x] maybe we need a working canvas and a display canvas
+* [x] place image only if a match happens
+* [x] average `shape_pts` corners to place the image (short term solution)
+* [x] make resolution configurable - not just 640x480
+* [ ] tweak which images are used to generate new patterns - higher threshold than showing?
+
+* [ ] try placing using WebGL/glfx.js: https://github.com/jywarren/webgl-distort/blob/main/dist/webgl-distort.js
+* [ ] refactor resample to use canvas?
+
+document goodMatchesMin
+
+
+
+
+
+
+=========
+
 TODO:
 
 x start tracking points we use with circles
