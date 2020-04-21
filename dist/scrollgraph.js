@@ -526,7 +526,12 @@ Scrollgraph = function Scrollgraph(options) {
                 options.srcHeight);
 
               // replace pattern image with newly matched image if 1.5x more good matches
-              if (results.good_matches > options.goodMatchesMin * 1.5) matcher.train(video);
+              //if (results.good_matches > options.goodMatchesMin * 1.5) {
+              //  matcher.train(video);
+                // adjust offset to new origin
+              //  offsetX += avOffset.x - (options.srcWidth / 2);
+              //  offsetY += avOffset.y - (options.srcHeight / 2);
+              //}
  
             }
           }
