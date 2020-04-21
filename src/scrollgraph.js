@@ -49,12 +49,12 @@ Scrollgraph = function Scrollgraph(options) {
             var results = matcher.match(video);
 
             if (results.good_matches > options.goodMatchesMin && results.projectedCorners) {
-              console.log('Good match!', results.projectedCorners);
+              console.log('Good match!', results.good_matches);
  
               var avOffset = util.averageOffsets(results.projectedCorners);
               ctx.drawImage(video,
-                offsetX - avOffset.x - (options.srcWidth / 2),
-                offsetY - avOffset.y - (options.srcHeight / 2),
+                offsetX - avOffset.x + (options.srcWidth / 2),
+                offsetY - avOffset.y + (options.srcHeight / 2),
                 options.srcWidth,
                 options.srcHeight);
 
