@@ -13,13 +13,12 @@ Starting over;
 * [x] refactor `train_pattern()` to accept new image/vid input
 * [x] pass out `good_matches` from `match()` 
 * [x] can we make the multiscale pyramid toggle-able - yes, set `num_train_levels` to 1
-* [ ] don't run on each video frame, only when a match is requested?
-    * [ ] maybe we need a working canvas and a display canvas
-* [ ] place image only if a match happens
-* [ ] average `shape_pts` corners to place the image (short term solution)
-* [ ] make resolution configurable - not just 640x480
-
-
+* [x] don't run on each video frame, only when a match is requested?
+    * [x] maybe we need a working canvas and a display canvas
+* [x] place image only if a match happens
+* [x] average `shape_pts` corners to place the image (short term solution)
+* [x] make resolution configurable - not just 640x480
+* [ ] tweak which images are used to generate new patterns - higher threshold than showing?
 
 * [ ] try placing using WebGL/glfx.js: https://github.com/jywarren/webgl-distort/blob/main/dist/webgl-distort.js
 * [ ] refactor resample to use canvas?

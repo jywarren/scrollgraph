@@ -513,7 +513,6 @@ Scrollgraph = function Scrollgraph(options) {
             isFirst = false;
           } else {
 
-            console.log('matching...');
             var results = matcher.match(video);
 
             if (results.good_matches > options.goodMatchesMin && results.projectedCorners) {
@@ -526,11 +525,9 @@ Scrollgraph = function Scrollgraph(options) {
                 options.srcWidth,
                 options.srcHeight);
 
-              // replace pattern image with newly matched image
-              matcher.train(video);
+              // replace pattern image with newly matched image if 1.5x more good matches
+              if (results.good_matches > options.goodMatchesMin * 1.5) matcher.train(video);
  
-            } else {
-              console.log('no good matches');
             }
           }
           compatibility.requestAnimationFrame(draw);
