@@ -17,14 +17,41 @@ Scrollgraph = function Scrollgraph(options) {
       video.onloadedmetadata = function(e) {
         video.play();
       };
-      matcher = require('./setupMatcher.js')(video, ctx, options); // initialize matcher and pass in the video element
+
+      // turn off camera when done
+      $(window).unload(function() {
+        video.pause();
+        video.src = null;
+      });
+
+      matcher = require('./setupMatcher.js')(ctx, options); // initialize matcher and pass in the video element
+
+      // initiate first frame
+      compatibility.requestAnimationFrame(draw);
 
       // start by matching against first
-      matcher.train(video);
+      compatibility.requestAnimationFrame(function() {
+        matcher.train(video);
+      });
 
-      // move loop logic out here
-      matcher.match(video);
+      function draw() {
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
 
+          var results = matcher.match(video);
+          if (results.good_matches > 8) {
+            // do something with results.shape_pts
+            console.log('good!', results.shape_pts);
+
+            matcher.train(video);
+          } else {
+            console.log('no good matches');
+          }
+          compatibility.requestAnimationFrame(draw);
+
+        } else { // try over again
+          compatibility.requestAnimationFrame(draw);
+        }
+      }
 
       // pass out the API so people can use it externally
       resolve(matcher);

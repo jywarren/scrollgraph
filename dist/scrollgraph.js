@@ -1731,14 +1731,41 @@ Scrollgraph = function Scrollgraph(options) {
       video.onloadedmetadata = function(e) {
         video.play();
       };
-      matcher = require('./setupMatcher.js')(video, ctx, options); // initialize matcher and pass in the video element
+
+      // turn off camera when done
+      $(window).unload(function() {
+        video.pause();
+        video.src = null;
+      });
+
+      matcher = require('./setupMatcher.js')(ctx, options); // initialize matcher and pass in the video element
+
+      // initiate first frame
+      compatibility.requestAnimationFrame(draw);
 
       // start by matching against first
-      matcher.train(video);
+      compatibility.requestAnimationFrame(function() {
+        matcher.train(video);
+      });
 
-      // move loop logic out here
-      matcher.match(video);
+      function draw() {
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
 
+          var results = matcher.match(video);
+          if (results.good_matches > 8) {
+            // do something with results.shape_pts
+            console.log('good!', results.shape_pts);
+
+            matcher.train(video);
+          } else {
+            console.log('no good matches');
+          }
+          compatibility.requestAnimationFrame(draw);
+
+        } else { // try over again
+          compatibility.requestAnimationFrame(draw);
+        }
+      }
 
       // pass out the API so people can use it externally
       resolve(matcher);
@@ -1750,131 +1777,118 @@ Scrollgraph = function Scrollgraph(options) {
 
 },{"./addImage.js":12,"./createCanvas.js":13,"./defaults.js":15,"./drawImage.js":16,"./setupMatcher.js":30,"./util.js":31}],30:[function(require,module,exports){
 "use strict";
-module.exports = function setupMatcher(video, ctx, options) {
+module.exports = function setupMatcher(ctx, options) {
 
-options.num_train_levels = options.num_train_levels || 4;
+  options.num_train_levels = options.num_train_levels || 4;
 
-initialize(options.srcWidth, options.srcHeight);
-compatibility.requestAnimationFrame(match);
+  initialize(options.srcWidth, options.srcHeight);
 
-$(window).unload(function() {
-  video.pause();
-  video.src=null;
-});
+  var canvasWidth, canvasHeight;
+  var img_u8, img_u8_smooth, screen_corners, num_corners, screen_descriptors;
+  var pattern_corners, pattern_descriptors, pattern_preview;
+  var matches, homo3x3, match_mask;
+  var shape_pts;
 
-var canvasWidth, canvasHeight;
-var img_u8, img_u8_smooth, screen_corners, num_corners, screen_descriptors;
-var pattern_corners, pattern_descriptors, pattern_preview;
-var matches, homo3x3, match_mask;
-var shape_pts;
+  // externalizing submodules:
+  let match_pattern = require('./jsfeat/matchPattern.js');
+  let find_transform = require('./jsfeat/findTransform.js');
+  let ic_angle = require('./jsfeat/icAngle.js');
+  let detect_keypoints = require('./jsfeat/detectKeypoints.js');
 
-// externalizing submodules:
-let match_pattern = require('./jsfeat/matchPattern.js');
-let find_transform = require('./jsfeat/findTransform.js');
-let ic_angle = require('./jsfeat/icAngle.js');
-let detect_keypoints = require('./jsfeat/detectKeypoints.js');
-let train_pattern = require('./jsfeat/trainPattern.js')(
-  img_u8,
-  pattern_corners,
-  pattern_preview,
-  pattern_descriptors,
-  pattern_corners,
-  ctx,
-  options);
-
-function initialize(videoWidth, videoHeight) {
-  canvasWidth  = canvas.width;
-  canvasHeight = canvas.height;
-
-  ctx.fillStyle = "rgb(0,255,0)";
-  ctx.strokeStyle = "rgb(0,255,0)";
-
-  // our point match structure
-  var match_t = (function () {
-    function match_t(screen_idx, pattern_lev, pattern_idx, distance) {
-      if (typeof screen_idx === "undefined") { screen_idx=0; }
-      if (typeof pattern_lev === "undefined") { pattern_lev=0; }
-      if (typeof pattern_idx === "undefined") { pattern_idx=0; }
-      if (typeof distance === "undefined") { distance=0; }
+  function initialize(videoWidth, videoHeight) {
+    canvasWidth  = canvas.width;
+    canvasHeight = canvas.height;
  
-      this.screen_idx = screen_idx;
-      this.pattern_lev = pattern_lev;
-      this.pattern_idx = pattern_idx;
-      this.distance = distance;
+    ctx.fillStyle = "rgb(0,255,0)";
+    ctx.strokeStyle = "rgb(0,255,0)";
+ 
+    // our point match structure
+    var match_t = (function () {
+      function match_t(screen_idx, pattern_lev, pattern_idx, distance) {
+        if (typeof screen_idx === "undefined") { screen_idx=0; }
+        if (typeof pattern_lev === "undefined") { pattern_lev=0; }
+        if (typeof pattern_idx === "undefined") { pattern_idx=0; }
+        if (typeof distance === "undefined") { distance=0; }
+  
+        this.screen_idx = screen_idx;
+        this.pattern_lev = pattern_lev;
+        this.pattern_idx = pattern_idx;
+        this.distance = distance;
+      }
+      return match_t;
+    })();
+ 
+    img_u8 = new jsfeat.matrix_t(640, 480, jsfeat.U8_t | jsfeat.C1_t);
+    // after blur
+    img_u8_smooth = new jsfeat.matrix_t(640, 480, jsfeat.U8_t | jsfeat.C1_t);
+    // we wll limit to 500 strongest points
+    screen_descriptors = new jsfeat.matrix_t(32, 500, jsfeat.U8_t | jsfeat.C1_t);
+    pattern_descriptors = [];
+ 
+    screen_corners = [];
+    pattern_corners = [];
+    matches = [];
+ 
+    var i = 640*480;
+    while (--i >= 0) {
+      screen_corners[i] = new jsfeat.keypoint_t(0,0,0,0,-1);
+      matches[i] = new match_t();
     }
-    return match_t;
-  })();
-
-  img_u8 = new jsfeat.matrix_t(640, 480, jsfeat.U8_t | jsfeat.C1_t);
-  // after blur
-  img_u8_smooth = new jsfeat.matrix_t(640, 480, jsfeat.U8_t | jsfeat.C1_t);
-  // we wll limit to 500 strongest points
-  screen_descriptors = new jsfeat.matrix_t(32, 500, jsfeat.U8_t | jsfeat.C1_t);
-  pattern_descriptors = [];
-
-  screen_corners = [];
-  pattern_corners = [];
-  matches = [];
-
-  var i = 640*480;
-  while (--i >= 0) {
-    screen_corners[i] = new jsfeat.keypoint_t(0,0,0,0,-1);
-    matches[i] = new match_t();
+ 
+    // transform matrix
+    homo3x3 = new jsfeat.matrix_t(3,3,jsfeat.F32C1_t);
+    match_mask = new jsfeat.matrix_t(500,1,jsfeat.U8C1_t);
+ 
+    options.blur_size = options.blur_size || 5;
+    options.lap_thres = options.lap_thres || 30;
+    options.eigen_thres = options.eigen_thres || 25;
+    options.match_threshold = options.match_threshold || 48;
   }
 
-  // transform matrix
-  homo3x3 = new jsfeat.matrix_t(3,3,jsfeat.F32C1_t);
-  match_mask = new jsfeat.matrix_t(500,1,jsfeat.U8C1_t);
+  function train(img) {
+    let train_pattern = require('./jsfeat/trainPattern.js')(
+      img_u8,
+      pattern_corners,
+      pattern_preview,
+      pattern_descriptors,
+      pattern_corners,
+      ctx,
+      options);
+    pattern_preview = train_pattern(img).pattern_preview;
+  }
 
-  options.blur_size = options.blur_size || 5;
-  options.lap_thres = options.lap_thres || 30;
-  options.eigen_thres = options.eigen_thres || 25;
-  options.match_threshold = options.match_threshold || 48;
-}
+  // requires: img_u8, img_u8_smooth, options, screen_corners, num_corners, screen_descriptors, pattern_preview, matches, homo3x3
+  function match(img) {
 
-function train(img) {
-  // later, do something with img
-  pattern_preview = train_pattern(img).pattern_preview;
-}
-
-// requires: img_u8, img_u8_smooth, options, screen_corners, num_corners, screen_descriptors, pattern_preview, matches, homo3x3
-function match() {
-  // queue next frame
-  compatibility.requestAnimationFrame(match);
-
-// BEGIN section to externalize into fetchImage
-  if (video.readyState === video.HAVE_ENOUGH_DATA) {
-
-    ctx.drawImage(video, 0, 0, 640, 480); // draw incoming image to canvas
+    ctx.drawImage(img, 0, 0, 640, 480); // draw incoming image to canvas
     var imageData = ctx.getImageData(0, 0, 640, 480); // get it as imageData
-// END section
-
+ 
     // start processing new image
     jsfeat.imgproc.grayscale(imageData.data, 640, 480, img_u8);
     jsfeat.imgproc.gaussian_blur(img_u8, img_u8_smooth, options.blur_size|0);
-
+ 
     jsfeat.yape06.laplacian_threshold = options.lap_thres|0;
     jsfeat.yape06.min_eigen_value_threshold = options.eigen_thres|0;
-
+ 
     num_corners = detect_keypoints(img_u8_smooth, screen_corners, 500);
-
+ 
     jsfeat.orb.describe(img_u8_smooth, screen_corners, num_corners, screen_descriptors);
-
+ 
     var num_matches = 0;
     var good_matches = 0;
     if (pattern_preview) {
-
+ 
       // match the points:
       num_matches = match_pattern(screen_descriptors, pattern_descriptors, matches, options);
-
+ 
       // find the transform:
       good_matches = find_transform(matches, num_matches, screen_corners, pattern_corners, homo3x3, match_mask);
-
+ 
       // get the projected pattern corners
       shape_pts = require('./jsfeat/tCorners.js')(homo3x3.data, pattern_preview.cols*2, pattern_preview.rows*2);
-
+ 
     }
-
+ 
     // ctx.putImageData(imageData, 0, 0); // to draw on the canvas
     if (options.annotations) require('./jsfeat/annotateImage.js')(ctx,
       imageData,
@@ -1887,18 +1901,19 @@ function match() {
       shape_pts,
       pattern_preview,
       match_mask);
-
+ 
     return {
-      matches,
+      good_matches,
+      num_matches,
+      num_corners,
       shape_pts
     }
   }
-}
 
-return {
-  train: train,
-  match: match
-}
+  return {
+    train: train,
+    match: match
+  }
 
 }
 

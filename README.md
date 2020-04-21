@@ -11,10 +11,16 @@ Starting over;
 * [x] get it working again
 * [x] externalize `match()` to be run in scrollgraph?
 * [x] refactor `train_pattern()` to accept new image/vid input
-* [ ] clarify number of good matches as acceptance trigger
+* [x] pass out `good_matches` from `match()` 
+* [ ] make resolution configurable - not just 640x480
+* [ ] don't run on each video frame, only when a match is requested?
+* [ ] restructure the cycle of img1, img2
 
 
 
+* [ ] try placing using WebGL/glfx.js: https://github.com/jywarren/webgl-distort/blob/main/dist/webgl-distort.js
+
+* [ ] do we need to not place the images on the canvas at some moments?
 
 
 
