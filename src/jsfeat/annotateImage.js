@@ -5,6 +5,9 @@ module.exports = function annotate_image(ctx, imageData, matches, num_matches, n
   let render_mono_image = require('./renderMonoImage.js'); 
 
   var data_u32 = new Uint32Array(imageData.data.buffer); // new image structure
+ 
+  ctx.fillStyle = "rgb(0,255,0)";
+  ctx.strokeStyle = "rgb(0,255,0)";
 
   if (pattern_preview) render_mono_image(pattern_preview.data, data_u32, pattern_preview.cols, pattern_preview.rows, 640);
 

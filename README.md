@@ -12,17 +12,19 @@ Starting over;
 * [x] externalize `match()` to be run in scrollgraph?
 * [x] refactor `train_pattern()` to accept new image/vid input
 * [x] pass out `good_matches` from `match()` 
-* [ ] make resolution configurable - not just 640x480
+* [x] can we make the multiscale pyramid toggle-able - yes, set `num_train_levels` to 1
 * [ ] don't run on each video frame, only when a match is requested?
-* [ ] restructure the cycle of img1, img2
+    * [ ] maybe we need a working canvas and a display canvas
+* [ ] place image only if a match happens
+* [ ] average `shape_pts` corners to place the image (short term solution)
+* [ ] make resolution configurable - not just 640x480
 
 
 
 * [ ] try placing using WebGL/glfx.js: https://github.com/jywarren/webgl-distort/blob/main/dist/webgl-distort.js
+* [ ] refactor resample to use canvas?
 
-* [ ] do we need to not place the images on the canvas at some moments?
-
-
+document goodMatchesMin
 
 
 

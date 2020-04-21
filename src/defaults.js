@@ -1,5 +1,5 @@
 module.exports = function defaults(options) {
-  options.delay = options.delay || 1000;
+  options.goodMatchesMin = options.goodMatchesMin || 8;
   options.annotations = options.annotations || true;
   options.srcWidth = options.srcWidth || 800;
   options.srcHeight = options.srcHeight || 600; 

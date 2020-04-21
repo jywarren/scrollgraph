@@ -14,19 +14,15 @@
 
   </head>
   <body>
-    <video id="webcam" width="640" height="480" style="display:none;"></video>
     <div style=" width:640px;height:480px;margin: 10px auto;">
-        <canvas id="canvas" width="640" height="480"></canvas>
+      <canvas id="canvas" width="640" height="480"></canvas>
     </div>
-
-<!--
-    <canvas style="width:75%;" id="canvas"></canvas>
-    <video style="opacity: 0.5; position:absolute; bottom: 50px; width: 640px;" autoplay></video>
--->
+    <video id="webcam" width="640" height="480" style="display:none;"></video>
+    <canvas id="workingCanvas" width="640" height="480" style="display:none;"></canvas>
 
     <script type="text/javascript" src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
     <script src="node_modules/bootstrap/dist/js/bootstrap.min.js"></script>
-    <script type="text/javascript" src="lib/jsfeat-min.js"></script>
+    <script type="text/javascript" src="node_modules/jsfeat/build/jsfeat-min.js"></script>
     <script type="text/javascript" src="lib/compatibility.js"></script>
     <script src="dist/scrollgraph.js"></script>
     <script type="text/javascript">
@@ -36,9 +32,8 @@
       Scrollgraph({
         debug: true,
         annotations: true,
-//        minConfidence: 100, // minimum score a matched pair must have (both c1 and c2) to be used 
-//        maxPointsCount: 4, // max matched points used per image
-//        minPointsCount: 2, // min matched points required per image
+        goodMatchesMin: 12, // default 8
+        num_train_levels: 1, // default 4 but not needed if no resizing happens (as in microscopy)
         delay: 2000, // try reducing this
         width: 1600,
         height: 1600,

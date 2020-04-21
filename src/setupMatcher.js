@@ -1,15 +1,15 @@
 "use strict";
-module.exports = function setupMatcher(ctx, options) {
+module.exports = function setupMatcher(options) {
+
+  let createCanvas = require('./createCanvas.js');
+  var ctx = createCanvas('workingCanvas', options);
 
   options.num_train_levels = options.num_train_levels || 4;
-
-  initialize(options.srcWidth, options.srcHeight);
-
   var canvasWidth, canvasHeight;
   var img_u8, img_u8_smooth, screen_corners, num_corners, screen_descriptors;
   var pattern_corners, pattern_descriptors, pattern_preview;
   var matches, homo3x3, match_mask;
-  var shape_pts;
+  var projectedCorners;
 
   // externalizing submodules:
   let match_pattern = require('./jsfeat/matchPattern.js');
@@ -17,12 +17,11 @@ module.exports = function setupMatcher(ctx, options) {
   let ic_angle = require('./jsfeat/icAngle.js');
   let detect_keypoints = require('./jsfeat/detectKeypoints.js');
 
+  initialize(options.srcWidth, options.srcHeight);
+
   function initialize(videoWidth, videoHeight) {
     canvasWidth  = canvas.width;
     canvasHeight = canvas.height;
- 
-    ctx.fillStyle = "rgb(0,255,0)";
-    ctx.strokeStyle = "rgb(0,255,0)";
  
     // our point match structure
     var match_t = (function () {
@@ -40,9 +39,9 @@ module.exports = function setupMatcher(ctx, options) {
       return match_t;
     })();
  
-    img_u8 = new jsfeat.matrix_t(640, 480, jsfeat.U8_t | jsfeat.C1_t);
+    img_u8 = new jsfeat.matrix_t(options.srcWidth, options.srcHeight, jsfeat.U8_t | jsfeat.C1_t);
     // after blur
-    img_u8_smooth = new jsfeat.matrix_t(640, 480, jsfeat.U8_t | jsfeat.C1_t);
+    img_u8_smooth = new jsfeat.matrix_t(options.srcWidth, options.srcHeight, jsfeat.U8_t | jsfeat.C1_t);
     // we wll limit to 500 strongest points
     screen_descriptors = new jsfeat.matrix_t(32, 500, jsfeat.U8_t | jsfeat.C1_t);
     pattern_descriptors = [];
@@ -51,7 +50,7 @@ module.exports = function setupMatcher(ctx, options) {
     pattern_corners = [];
     matches = [];
  
-    var i = 640*480;
+    var i = options.srcWidth * options.srcHeight;
     while (--i >= 0) {
       screen_corners[i] = new jsfeat.keypoint_t(0,0,0,0,-1);
       matches[i] = new match_t();
@@ -82,11 +81,11 @@ module.exports = function setupMatcher(ctx, options) {
   // requires: img_u8, img_u8_smooth, options, screen_corners, num_corners, screen_descriptors, pattern_preview, matches, homo3x3
   function match(img) {
 
-    ctx.drawImage(img, 0, 0, 640, 480); // draw incoming image to canvas
-    var imageData = ctx.getImageData(0, 0, 640, 480); // get it as imageData
+    ctx.drawImage(img, 0, 0, options.srcWidth, options.srcHeight); // draw incoming image to canvas
+    var imageData = ctx.getImageData(0, 0, options.srcWidth, options.srcHeight); // get it as imageData
  
     // start processing new image
-    jsfeat.imgproc.grayscale(imageData.data, 640, 480, img_u8);
+    jsfeat.imgproc.grayscale(imageData.data, options.srcWidth, options.srcHeight, img_u8);
     jsfeat.imgproc.gaussian_blur(img_u8, img_u8_smooth, options.blur_size|0);
  
     jsfeat.yape06.laplacian_threshold = options.lap_thres|0;
@@ -107,7 +106,7 @@ module.exports = function setupMatcher(ctx, options) {
       good_matches = find_transform(matches, num_matches, screen_corners, pattern_corners, homo3x3, match_mask);
  
       // get the projected pattern corners
-      shape_pts = require('./jsfeat/tCorners.js')(homo3x3.data, pattern_preview.cols*2, pattern_preview.rows*2);
+      projectedCorners = require('./jsfeat/tCorners.js')(homo3x3.data, pattern_preview.cols*2, pattern_preview.rows*2);
  
     }
  
@@ -120,15 +119,15 @@ module.exports = function setupMatcher(ctx, options) {
       good_matches,
       screen_corners,
       pattern_corners,
-      shape_pts,
+      projectedCorners,
       pattern_preview,
       match_mask);
  
     return {
-      good_matches,
-      num_matches,
-      num_corners,
-      shape_pts
+      good_matches: good_matches,
+      num_matches: num_matches,
+      num_corners: num_corners,
+      projectedCorners: projectedCorners
     }
   }
 
