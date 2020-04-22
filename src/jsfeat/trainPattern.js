@@ -20,7 +20,8 @@ module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_pre
     new_height = (img_u8.rows*sc0)|0;
 
     // insert greyscale so we can place new image data
-    ctx.drawImage(newImg, 0, 0, 640, 480); // draw incoming image to canvas
+// draw it too big!!!
+    ctx.drawImage(newImg, -20, -20, 660, 500); // draw incoming image to canvas
     var imageData = ctx.getImageData(0, 0, 640, 480); // get it as imageData
     // start processing new image
     jsfeat.imgproc.grayscale(imageData.data, 640, 480, img_u8);
