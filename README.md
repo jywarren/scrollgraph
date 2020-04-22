@@ -33,7 +33,11 @@ Starting over;
 
 * [x] draw box around key images
 * [x] mark points
+
+#################
 * [ ] crop in/out the image used to train... use only the center for some reason??
+  * [ ] this will get us better matches
+#################
 
 * [x] use x,y offset + num matches to find new keyframes. Plus high rankings
 * [ ] add rotation
