@@ -4,6 +4,18 @@ Create high res images by scrolling around at low res in video.
 
 ============
 
+### Methods
+
+* `scrollgraph.train(img1)`
+* `scrollgraph.match(img2)` returns a `results` object with the following parameters:
+  * `results.good_matches`
+  * `results.num_matches`
+  * `results.num_corners`
+  * `results.projected_corners`
+  * `results.annotate(ctx, offset)`
+
+### To do
+
 Starting over;
 
 * [x] get jsfeat demo working
@@ -18,7 +30,16 @@ Starting over;
 * [x] place image only if a match happens
 * [x] average `shape_pts` corners to place the image (short term solution)
 * [x] make resolution configurable - not just 640x480
-* [ ] tweak which images are used to generate new patterns - higher threshold than showing?
+
+* [ ] draw box around key images
+* [ ] mark points
+* [ ] crop in/out the image used to train... use only the center for some reason??
+
+* [ ] use x,y offset + num matches to find new keyframes. Plus high rankings
+* [ ] add rotation
+
+* [ ] tweak cumulative offest settings
+
 
 * [ ] try placing using WebGL/glfx.js: https://github.com/jywarren/webgl-distort/blob/main/dist/webgl-distort.js
 * [ ] refactor resample to use canvas?
