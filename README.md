@@ -31,11 +31,11 @@ Starting over;
 * [x] average `shape_pts` corners to place the image (short term solution)
 * [x] make resolution configurable - not just 640x480
 
-* [ ] draw box around key images
-* [ ] mark points
+* [x] draw box around key images
+* [x] mark points
 * [ ] crop in/out the image used to train... use only the center for some reason??
 
-* [ ] use x,y offset + num matches to find new keyframes. Plus high rankings
+* [x] use x,y offset + num matches to find new keyframes. Plus high rankings
 * [ ] add rotation
 
 * [ ] tweak cumulative offest settings
