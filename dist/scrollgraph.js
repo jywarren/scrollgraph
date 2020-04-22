@@ -1,20 +1,4 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
-module.exports = function createCanvas(id, options) {
-  var ctx, canvas, height, width;
-  id = id || "canvas";
-  canvas = document.getElementById(id);
-  ctx = canvas.getContext("2d");
-  width = options.width || 1000;
-  height = options.height || 1000;
-  canvas.width = width;
-  canvas.height = height;
-  $(canvas).css('height', $(canvas).width() + 'px');
-  ctx.fillStyle = '#eee'; // background
-  ctx.fillRect(0, 0, options.width, options.height);
-  return ctx;
-}
-
-},{}],2:[function(require,module,exports){
 function annotate(points, ctx, offset) {
   setTimeout(function() {
 
@@ -71,9 +55,11 @@ function annotate(points, ctx, offset) {
 }
 module.exports = annotate;
 
-},{}],3:[function(require,module,exports){
+},{}],2:[function(require,module,exports){
 module.exports = function defaults(options) {
   options.goodMatchesMin = options.goodMatchesMin || 8;
+  options.keyframeThreshold = options.keyframeThreshold || 2;
+  options.keyframeDistanceThreshold = options.keyframeDistanceThreshold || 1/3;
   options.annotations = options.annotations || true;
   options.srcWidth = options.srcWidth || 800;
   options.srcHeight = options.srcHeight || 600; 
@@ -90,34 +76,123 @@ module.exports = function defaults(options) {
   return options;
 }
 
-},{}],4:[function(require,module,exports){
-module.exports = function annotate_image(ctx, imageData, matches, num_matches, num_corners, good_matches, screen_corners, pattern_corners, shape_pts, pattern_preview, match_mask) {
-  let render_pattern_shape = require('./renderPatternShape.js'); 
+},{}],3:[function(require,module,exports){
+// maps incoming image to the canvas for scrollgraph program
+module.exports = function handleImage(img, options) {
+  var matcher;
+  let createCanvas = require('./util/createCanvas.js'),
+      util = require('./util/util.js')(options);
+  var ctx = createCanvas('canvas', options);
+  matcher = require('./setupMatcher.js')(options); // initialize matcher
+
+  // initiate first frame
+  compatibility.requestAnimationFrame(draw);
+
+  // start by matching against first
+  var isFirst = true,
+      offsetX = (options.width / 2) - (options.srcWidth / 2),
+      offsetY = (options.height / 2) - (options.srcHeight / 2),
+      keyframeDistanceThreshold = (options.srcWidth + options.srcHeight) / (1/options.keyframeDistanceThreshold);
+
+  function draw() {
+    if (img instanceof Image || img instanceof HTMLVideoElement && img.readyState === img.HAVE_ENOUGH_DATA) {
+
+      if (isFirst) {
+        matcher.train(img);
+        ctx.drawImage(img, 
+          offsetX,
+          offsetY,
+          options.srcWidth,
+          options.srcHeight);
+        isFirst = false;
+      } else {
+
+        var results = matcher.match(img);
+        console.log(results);
+
+        if (results.good_matches > options.goodMatchesMin && results.projected_corners) {
+
+          var avgOffset = util.averageOffsets(results.projected_corners),
+              imgPosX = offsetX - avgOffset.x + (options.srcWidth / 2),
+              imgPosY = offsetY - avgOffset.y + (options.srcHeight / 2);
+          ctx.drawImage(img,
+            imgPosX,
+            imgPosY,
+            options.srcWidth,
+            options.srcHeight);
+
+          if (options.annotations) results.annotate(ctx, {x: imgPosX, y: imgPosY}); // draw match points
+
+          // new keyframe if 2x more good matches AND more than 50% out from original image
+          results.distFromKeyframe = results.projected_corners[0].x + results.projected_corners[0].y;
+          if (results.good_matches > options.goodMatchesMin * options.keyframeThreshold && results.distFromKeyframe > keyframeDistanceThreshold) {
+            console.log('new keyframe!');
+            matcher.train(img);
+            if (options.annotations) {
+              ctx.save();
+              ctx.translate(
+                (offsetX),
+                (offsetY),
+              );
+           
+              let render_pattern_shape = require('./jsfeat/renderPatternShape.js'); 
+              // this draws the position of the original in the image. We may need to invert the matrix to place an image
+              render_pattern_shape(ctx, results.projected_corners); // draw a distorted frame
+           
+              ctx.restore();
+              ctx.strokeStyle = "yellow";
+              ctx.strokeRect(
+                imgPosX,
+                imgPosY,
+                options.srcWidth,
+                options.srcHeight);
+            }
+            // adjust offset to new origin
+            offsetX += - avgOffset.x + (options.srcWidth / 2);
+            offsetY += - avgOffset.y + (options.srcHeight / 2);
+          }
+
+        }
+      }
+      compatibility.requestAnimationFrame(draw);
+
+    } else { // try over again
+      compatibility.requestAnimationFrame(draw);
+    }
+  }
+  // pass out our matcher so it can be used to train(), match()
+  return matcher;
+}
+
+},{"./jsfeat/renderPatternShape.js":14,"./setupMatcher.js":18,"./util/createCanvas.js":20,"./util/util.js":21}],4:[function(require,module,exports){
+module.exports = function annotate_image(ctx, imageData, matches, num_matches, num_corners, good_matches, screen_corners, pattern_corners, shape_pts, pattern_preview, match_mask, offset) {
+  offset = offset || {x: 0, y:0};
+  let render_mono_image = require('./renderMonoImage.js'); 
   let render_corners = require('./renderCorners.js'); 
   let render_matches = require('./renderMatches.js'); 
-  let render_mono_image = require('./renderMonoImage.js'); 
+  let render_pattern_shape = require('./renderPatternShape.js'); 
 
   var data_u32 = new Uint32Array(imageData.data.buffer); // new image structure
  
   ctx.fillStyle = "rgb(0,255,0)";
   ctx.strokeStyle = "rgb(0,255,0)";
 
-  if (pattern_preview) render_mono_image(pattern_preview.data, data_u32, pattern_preview.cols, pattern_preview.rows, 640);
+//  if (pattern_preview) render_mono_image(pattern_preview.data, data_u32, pattern_preview.cols, pattern_preview.rows, 640);
 
   // mark found points in imageData to be put onto canvas
   render_corners(screen_corners, num_corners, data_u32, 640);
 
-  ctx.putImageData(imageData, 0, 0); // write annotations and preview image back onto canvas
+  ctx.putImageData(imageData, offset.x, offset.y); // write annotations and preview image back onto canvas
 
-  if (num_matches) {
+//  if (num_matches) {
     // connect points with lines:
-    render_matches(ctx, matches, num_matches, screen_corners, pattern_corners, match_mask);
-    if (good_matches > 8)
-      render_pattern_shape(ctx, shape_pts); // draw a distorted frame
-  }
+//    render_matches(ctx, matches, num_matches, screen_corners, pattern_corners, match_mask);
+//    if (good_matches > 8)
+//      render_pattern_shape(ctx, shape_pts); // draw a distorted frame
+//  }
 }
 
-},{"./renderCorners.js":10,"./renderMatches.js":11,"./renderMonoImage.js":12,"./renderPatternShape.js":13}],5:[function(require,module,exports){
+},{"./renderCorners.js":11,"./renderMatches.js":12,"./renderMonoImage.js":13,"./renderPatternShape.js":14}],5:[function(require,module,exports){
 module.exports = function detect_keypoints(img, corners, max_allowed) {
   let ic_angle = require('./icAngle.js');
 
@@ -288,7 +363,23 @@ module.exports = function match_pattern(screen_descriptors, pattern_descriptors,
   return num_matches;
 }
 
-},{"./popcnt32.js":9}],9:[function(require,module,exports){
+},{"./popcnt32.js":10}],9:[function(require,module,exports){
+module.exports = (function () {
+  function match_t(screen_idx, pattern_lev, pattern_idx, distance) {
+    if (typeof screen_idx === "undefined") { screen_idx=0; }
+    if (typeof pattern_lev === "undefined") { pattern_lev=0; }
+    if (typeof pattern_idx === "undefined") { pattern_idx=0; }
+    if (typeof distance === "undefined") { distance=0; }
+
+    this.screen_idx = screen_idx;
+    this.pattern_lev = pattern_lev;
+    this.pattern_idx = pattern_idx;
+    this.distance = distance;
+  }
+  return match_t;
+})
+
+},{}],10:[function(require,module,exports){
 // non zero bits count
 module.exports = function popcnt32(n) {
   n -= ((n >> 1) & 0x55555555);
@@ -296,7 +387,7 @@ module.exports = function popcnt32(n) {
   return (((n + (n >> 4))& 0xF0F0F0F)* 0x1010101) >> 24;
 }
 
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 // draws tiny +s on the canvas where there are corners
 module.exports = function render_corners(corners, count, img, step) {
   var pix = (0xff << 24) | (0x00 << 16) | (0xff << 8) | 0x00;
@@ -312,7 +403,7 @@ module.exports = function render_corners(corners, count, img, step) {
   }
 }
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 module.exports = function render_matches(ctx, matches, count, screen_corners, pattern_corners, match_mask) {
   for(var i = 0; i < count; ++i) {
     var m = matches[i];
@@ -331,7 +422,7 @@ module.exports = function render_matches(ctx, matches, count, screen_corners, pa
   }
 }
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 module.exports = function render_mono_image(src, dst, sw, sh, dw) {
   var alpha = (0xff << 24);
   for(var i = 0; i < sh; ++i) {
@@ -342,7 +433,7 @@ module.exports = function render_mono_image(src, dst, sw, sh, dw) {
   }
 }
 
-},{}],13:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 module.exports = function render_pattern_shape(ctx, shape_pts) {
   ctx.strokeStyle = "rgb(0,255,0)";
   ctx.beginPath();
@@ -357,7 +448,7 @@ module.exports = function render_pattern_shape(ctx, shape_pts) {
   ctx.stroke();
 }
 
-},{}],14:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 // project/transform rectangle corners with 3x3 Matrix
 module.exports = function tCorners(M, w, h) {
   var pt = [ {'x':0,'y':0}, {'x':w,'y':0}, {'x':w,'y':h}, {'x':0,'y':h} ];
@@ -374,7 +465,7 @@ module.exports = function tCorners(M, w, h) {
   return pt;
 }
 
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 // refactor this to accept an image/video?
 module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_preview, pattern_descriptors, pattern_corners, ctx, options) {
   // exposed closure
@@ -465,96 +556,24 @@ module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_pre
   }
 };
 
-},{"./detectKeypoints.js":5}],16:[function(require,module,exports){
+},{"./detectKeypoints.js":5}],17:[function(require,module,exports){
 Scrollgraph = function Scrollgraph(options) {
-  var matcher,
-      video = document.querySelector('video');
-  let createCanvas = require('./createCanvas.js'),
-      util = require('./util.js')(options);
-  var ctx = createCanvas('canvas', options);
-
   options = require('./defaults.js')(options);
+  var setupWebcam = require('./setupWebcam.js');
 
   return new Promise(function(resolve, reject) { 
 
-    navigator.mediaDevices.getUserMedia(options.camera)
-    .then(function(mediaStream) {
-      video.srcObject = mediaStream;
-      video.onloadedmetadata = function(e) {
-        video.play();
-      };
-
-      // turn off camera when done
-      $(window).unload(function() {
-        video.pause();
-        video.src = null;
-      });
-
-      matcher = require('./setupMatcher.js')(options); // initialize matcher and pass in the video element
-
-      // initiate first frame
-      compatibility.requestAnimationFrame(draw);
-
-      // start by matching against first
-      var isFirst = true,
-          offsetX = (options.width / 2) - (options.srcWidth / 2),
-          offsetY = (options.height / 2) - (options.srcHeight / 2);
-
-      function draw() {
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
-
-          if (isFirst) {
-            matcher.train(video);
-            ctx.drawImage(video, 
-              offsetX,
-              offsetY,
-              options.srcWidth,
-              options.srcHeight);
-            isFirst = false;
-          } else {
-
-            var results = matcher.match(video);
-
-            if (results.good_matches > options.goodMatchesMin && results.projectedCorners) {
-              console.log('Good match!', results.good_matches);
- 
-              var avOffset = util.averageOffsets(results.projectedCorners);
-              ctx.drawImage(video,
-                offsetX - avOffset.x + (options.srcWidth / 2),
-                offsetY - avOffset.y + (options.srcHeight / 2),
-                options.srcWidth,
-                options.srcHeight);
-
-              // replace pattern image with newly matched image if 1.5x more good matches
-              //if (results.good_matches > options.goodMatchesMin * 1.5) {
-              //  matcher.train(video);
-                // adjust offset to new origin
-              //  offsetX += avOffset.x - (options.srcWidth / 2);
-              //  offsetY += avOffset.y - (options.srcHeight / 2);
-              //}
- 
-            }
-          }
-          compatibility.requestAnimationFrame(draw);
-
-        } else { // try over again
-          compatibility.requestAnimationFrame(draw);
-        }
-      }
-
-      // pass out the API so people can use it externally
-      resolve(matcher);
-    })
-    .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
+    resolve(setupWebcam(options, require('./handleImage.js')));
 
   });
+
 }
 
-},{"./createCanvas.js":1,"./defaults.js":3,"./setupMatcher.js":17,"./util.js":18}],17:[function(require,module,exports){
+},{"./defaults.js":2,"./handleImage.js":3,"./setupWebcam.js":19}],18:[function(require,module,exports){
 "use strict";
 module.exports = function setupMatcher(options) {
 
-  let createCanvas = require('./createCanvas.js');
+  let createCanvas = require('./util/createCanvas.js');
   var ctx = createCanvas('workingCanvas', options);
 
   options.num_train_levels = options.num_train_levels || 4;
@@ -562,7 +581,7 @@ module.exports = function setupMatcher(options) {
   var img_u8, img_u8_smooth, screen_corners, num_corners, screen_descriptors;
   var pattern_corners, pattern_descriptors, pattern_preview;
   var matches, homo3x3, match_mask;
-  var projectedCorners;
+  var projected_corners;
 
   // externalizing submodules:
   let match_pattern = require('./jsfeat/matchPattern.js');
@@ -577,20 +596,7 @@ module.exports = function setupMatcher(options) {
     canvasHeight = canvas.height;
  
     // our point match structure
-    var match_t = (function () {
-      function match_t(screen_idx, pattern_lev, pattern_idx, distance) {
-        if (typeof screen_idx === "undefined") { screen_idx=0; }
-        if (typeof pattern_lev === "undefined") { pattern_lev=0; }
-        if (typeof pattern_idx === "undefined") { pattern_idx=0; }
-        if (typeof distance === "undefined") { distance=0; }
-  
-        this.screen_idx = screen_idx;
-        this.pattern_lev = pattern_lev;
-        this.pattern_idx = pattern_idx;
-        this.distance = distance;
-      }
-      return match_t;
-    })();
+    var match_t = require('./jsfeat/matchStructure.js')();
  
     img_u8 = new jsfeat.matrix_t(options.srcWidth, options.srcHeight, jsfeat.U8_t | jsfeat.C1_t);
     // after blur
@@ -631,8 +637,7 @@ module.exports = function setupMatcher(options) {
     pattern_preview = train_pattern(img).pattern_preview;
   }
 
-  // requires: img_u8, img_u8_smooth, options, screen_corners, num_corners, screen_descriptors, pattern_preview, matches, homo3x3
-  function match(img) {
+  function match(img, offset) {
 
     ctx.drawImage(img, 0, 0, options.srcWidth, options.srcHeight); // draw incoming image to canvas
     var imageData = ctx.getImageData(0, 0, options.srcWidth, options.srcHeight); // get it as imageData
@@ -659,28 +664,33 @@ module.exports = function setupMatcher(options) {
       good_matches = find_transform(matches, num_matches, screen_corners, pattern_corners, homo3x3, match_mask);
  
       // get the projected pattern corners
-      projectedCorners = require('./jsfeat/tCorners.js')(homo3x3.data, pattern_preview.cols*2, pattern_preview.rows*2);
+      projected_corners = require('./jsfeat/tCorners.js')(homo3x3.data, pattern_preview.cols*2, pattern_preview.rows*2);
  
     }
- 
-    // ctx.putImageData(imageData, 0, 0); // to draw on the canvas
-    if (options.annotations) require('./jsfeat/annotateImage.js')(ctx,
-      imageData,
-      matches,
-      num_matches,
-      num_corners,
-      good_matches,
-      screen_corners,
-      pattern_corners,
-      projectedCorners,
-      pattern_preview,
-      match_mask);
+
+    function annotate(displayCtx, offset) {
+      require('./jsfeat/annotateImage.js')(
+        displayCtx,
+        imageData,
+        matches,
+        num_matches,
+        num_corners,
+        good_matches,
+        screen_corners,
+        pattern_corners,
+        projected_corners,
+        pattern_preview,
+        match_mask,
+        offset);
+    }
  
     return {
       good_matches: good_matches,
+      matches: matches,
       num_matches: num_matches,
       num_corners: num_corners,
-      projectedCorners: projectedCorners
+      projected_corners: projected_corners,
+      annotate: annotate
     }
   }
 
@@ -691,7 +701,45 @@ module.exports = function setupMatcher(options) {
 
 }
 
-},{"./createCanvas.js":1,"./jsfeat/annotateImage.js":4,"./jsfeat/detectKeypoints.js":5,"./jsfeat/findTransform.js":6,"./jsfeat/icAngle.js":7,"./jsfeat/matchPattern.js":8,"./jsfeat/tCorners.js":14,"./jsfeat/trainPattern.js":15}],18:[function(require,module,exports){
+},{"./jsfeat/annotateImage.js":4,"./jsfeat/detectKeypoints.js":5,"./jsfeat/findTransform.js":6,"./jsfeat/icAngle.js":7,"./jsfeat/matchPattern.js":8,"./jsfeat/matchStructure.js":9,"./jsfeat/tCorners.js":15,"./jsfeat/trainPattern.js":16,"./util/createCanvas.js":20}],19:[function(require,module,exports){
+module.exports = function setupWebcam(options, imageHandler) {
+  var video = document.querySelector('video');
+  // refactor this so that the image fetch layer is abstract, can swap
+  navigator.mediaDevices.getUserMedia(options.camera)
+  .then(function(mediaStream) {
+    video.srcObject = mediaStream;
+    video.onloadedmetadata = function(e) {
+      video.play();
+    };
+
+    // turn off camera when done
+    $(window).unload(function() {
+      video.pause();
+      video.src = null;
+    });
+
+    return imageHandler(video, options);
+  })
+  .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
+}
+
+},{}],20:[function(require,module,exports){
+module.exports = function createCanvas(id, options) {
+  var ctx, canvas, height, width;
+  id = id || "canvas";
+  canvas = document.getElementById(id);
+  ctx = canvas.getContext("2d");
+  width = options.width || 1000;
+  height = options.height || 1000;
+  canvas.width = width;
+  canvas.height = height;
+  $(canvas).css('height', $(canvas).width() + 'px');
+  ctx.fillStyle = '#eee'; // background
+  ctx.fillRect(0, 0, options.width, options.height);
+  return ctx;
+}
+
+},{}],21:[function(require,module,exports){
 module.exports = function util(options) {
 
   // https://www.pentarem.com/blog/how-to-use-settimeout-with-async-await-in-javascript/
@@ -763,4 +811,4 @@ module.exports = function util(options) {
   }
 }
 
-},{}]},{},[1,3,16,17,18,2,4,5,6,7,8,9,10,11,12,13,14,15]);
+},{}]},{},[2,3,17,18,19,1,4,5,6,7,8,9,10,11,12,13,14,15,16,20,21]);
