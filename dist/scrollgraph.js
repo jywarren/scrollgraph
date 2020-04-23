@@ -124,7 +124,7 @@ module.exports = function handleImage(img, options) {
           if (options.annotations) results.annotate(ctx, {x: imgPosX, y: imgPosY}); // draw match points
 
           // new keyframe if 2x more good matches AND more than 50% out from original image
-          results.distFromKeyframe = results.projected_corners[0].x + results.projected_corners[0].y;
+          results.distFromKeyframe = Math.abs(results.projected_corners[0].x) + Math.abs(results.projected_corners[0].y);
           if (results.good_matches > options.goodMatchesMin * options.keyframeThreshold && results.distFromKeyframe > keyframeDistanceThreshold) {
             console.log('new keyframe!');
             matcher.train(img);
