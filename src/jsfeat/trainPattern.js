@@ -19,12 +19,19 @@ module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_pre
     new_width = (img_u8.cols*sc0)|0;
     new_height = (img_u8.rows*sc0)|0;
 
-    // insert greyscale so we can place new image data
-// draw it too big!!!
-    ctx.drawImage(newImg, -20, -20, 660, 500); // draw incoming image to canvas
-    var imageData = ctx.getImageData(0, 0, 640, 480); // get it as imageData
+    // trainingMargin is the width of the margin we discard when training a pattern; this improves matching for some reason.
+    // It is a proportion (from 0 to 1) of the image dimensions. 
+    options.trainingMargin = options.trainingMargin || 0.1;
+    var xOffset = options.trainingMargin * options.srcWidth;
+    var yOffset = options.trainingMargin * options.srcHeight;
+
+    // draw the image too big, letting margins hang off edges
+    ctx.drawImage(newImg, 0, 0, options.srcWidth, options.srcHeight,
+                          -xOffset, -yOffset, options.srcWidth + xOffset, options.srcHeight + yOffset); // draw incoming image to canvas
+    var imageData = ctx.getImageData(0, 0, options.srcWidth, options.srcHeight); // get it as imageData
+
     // start processing new image
-    jsfeat.imgproc.grayscale(imageData.data, 640, 480, img_u8);
+    jsfeat.imgproc.grayscale(imageData.data, options.srcWidth, options.srcHeight, img_u8);
  
     jsfeat.imgproc.resample(img_u8, lev0_img, new_width, new_height);
  
@@ -55,6 +62,14 @@ module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_pre
     jsfeat.orb.describe(lev_img, lev_corners, corners_num, lev_descr);
  
     console.log("train " + lev_img.cols + "x" + lev_img.rows + " points: " + corners_num);
+    
+    // fix the coordinates due to zoom-in on point finding
+    for (i = 0; i < lev_corners.length; ++i) {
+      lev_corners[i].x *= 1 / (1 + (options.trainingMargin * 2));
+      lev_corners[i].y *= 1 / (1 + (options.trainingMargin * 2));
+      lev_corners[i].x += xOffset;
+      lev_corners[i].y += yOffset;
+    }
  
     sc /= sc_inc;
  
@@ -77,12 +92,20 @@ module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_pre
       for (i = 0; i < corners_num; ++i) {
         lev_corners[i].x *= 1./sc;
         lev_corners[i].y *= 1./sc;
+        // fix the coordinates due to zoom-in on point finding
+        lev_corners[i].x *= 1 / (1 + (options.trainingMargin * 2));
+        lev_corners[i].y *= 1 / (1 + (options.trainingMargin * 2));
+        lev_corners[i].x += xOffset;
+        lev_corners[i].y += yOffset;
+        lev_corners[i].x += xOffset;
+        lev_corners[i].y += yOffset;
       }
  
       console.log("train " + lev_img.cols + "x" + lev_img.rows + " points: " + corners_num);
  
       sc /= sc_inc;
     }
+
     return {
       pattern_preview: pattern_preview
     }

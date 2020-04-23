@@ -11,8 +11,8 @@ module.exports = function handleImage(img, options) {
 
   // start by matching against first
   var isFirst = true,
-      offsetX = (options.width / 2) - (options.srcWidth / 2),
-      offsetY = (options.height / 2) - (options.srcHeight / 2),
+      originX = (options.width / 2) - (options.srcWidth / 2),
+      originY = (options.height / 2) - (options.srcHeight / 2),
       keyframeDistanceThreshold = (options.srcWidth + options.srcHeight) / (1/options.keyframeDistanceThreshold);
 
   function draw() {
@@ -21,8 +21,8 @@ module.exports = function handleImage(img, options) {
       if (isFirst) {
         matcher.train(img);
         ctx.drawImage(img, 
-          offsetX,
-          offsetY,
+          originX,
+          originY,
           options.srcWidth,
           options.srcHeight);
         isFirst = false;
@@ -34,8 +34,8 @@ module.exports = function handleImage(img, options) {
         if (results.good_matches > options.goodMatchesMin && results.projected_corners) {
 
           var avgOffset = util.averageOffsets(results.projected_corners),
-              imgPosX = offsetX - avgOffset.x + (options.srcWidth / 2),
-              imgPosY = offsetY - avgOffset.y + (options.srcHeight / 2);
+              imgPosX = originX - avgOffset.x + (options.srcWidth / 2),
+              imgPosY = originY - avgOffset.y + (options.srcHeight / 2);
           ctx.drawImage(img,
             imgPosX,
             imgPosY,
@@ -52,13 +52,13 @@ module.exports = function handleImage(img, options) {
             if (options.annotations) {
               ctx.save();
               ctx.translate(
-                (offsetX),
-                (offsetY),
+                (originX),
+                (originY),
               );
            
               let render_pattern_shape = require('./jsfeat/renderPatternShape.js'); 
               // this draws the position of the original in the image. We may need to invert the matrix to place an image
-              render_pattern_shape(ctx, results.projected_corners); // draw a distorted frame
+//              render_pattern_shape(ctx, results.projected_corners); // draw a distorted frame
            
               ctx.restore();
               ctx.strokeStyle = "yellow";
@@ -69,8 +69,8 @@ module.exports = function handleImage(img, options) {
                 options.srcHeight);
             }
             // adjust offset to new origin
-            offsetX += - avgOffset.x + (options.srcWidth / 2);
-            offsetY += - avgOffset.y + (options.srcHeight / 2);
+            originX += -avgOffset.x + (options.srcWidth / 2);
+            originY += -avgOffset.y + (options.srcHeight / 2);
           }
 
         }
