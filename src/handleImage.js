@@ -36,11 +36,17 @@ module.exports = function handleImage(img, options) {
           var avgOffset = util.averageOffsets(results.projected_corners),
               imgPosX = originX - avgOffset.x + (options.srcWidth / 2),
               imgPosY = originY - avgOffset.y + (options.srcHeight / 2);
+
+          var angleRadians = Math.atan2(results.projected_corners[1].y - results.projected_corners[0].y,
+                                        results.projected_corners[1].x - results.projected_corners[0].x);
+          ctx.save();
+          ctx.translate(imgPosX, imgPosY);
+          ctx.rotate(angleRadians);
           ctx.drawImage(img,
-            imgPosX,
-            imgPosY,
+            0, 0,
             options.srcWidth,
             options.srcHeight);
+          ctx.restore();
 
           if (options.annotations) results.annotate(ctx, {x: imgPosX, y: imgPosY}); // draw match points
 
@@ -62,7 +68,7 @@ module.exports = function handleImage(img, options) {
            
               ctx.restore();
               ctx.strokeStyle = "yellow";
-              ctx.strokeRect(
+              if (options.annotations) ctx.strokeRect(
                 imgPosX,
                 imgPosY,
                 options.srcWidth,
