@@ -37,15 +37,13 @@ Create high res images by scrolling around at low res in video.
 * [x] mark points
 
 #################
-* [ ] crop in/out the image used to train... use only the center for some reason??
-  * [ ] this will get us better matches
-  * [ ] scale up the points too, to account for scale down of image
+* [x] crop in/out the image used to train... use only the center for some reason??
+* [x] scale up the points too, to account for scale down of image
 #################
 
 * [x] use x,y offset + num matches to find new keyframes. Plus high rankings
-* [ ] add rotation
-
-* [ ] tweak cumulative offest settings
+* [x] add rotation
+* [x] tweak cumulative offest settings
 
 
 * [ ] try placing using WebGL/glfx.js: https://github.com/jywarren/webgl-distort/blob/main/dist/webgl-distort.js
