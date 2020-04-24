@@ -386,8 +386,15 @@ module.exports = function handleImage(img, options) {
           var angleRadians = Math.atan2(results.projected_corners[1].y - results.projected_corners[0].y,
                                         results.projected_corners[1].x - results.projected_corners[0].x);
           ctx.save();
-          ctx.translate(imgPosX, imgPosY);
-          ctx.rotate(angleRadians);
+//          ctx.translate(imgPosX, 
+//                        imgPosY);
+          ctx.translate(imgPosX + (options.srcWidth / 2), 
+                        imgPosY + (options.srcHeight / 2));
+          ctx.rotate(-angleRadians);
+//          var scale = options.srcWidth / Math.abs(results.projected_corners[1].x - results.projected_corners[0].x);
+//          ctx.scale(scale, scale);
+          ctx.translate(- (options.srcWidth / 2), 
+                        - (options.srcHeight / 2));
           ctx.drawImage(img,
             0, 0,
             options.srcWidth,
