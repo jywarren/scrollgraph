@@ -359,6 +359,7 @@ module.exports = function handleImage(img, options) {
   var isFirst = true,
       originX = (options.width / 2) - (options.srcWidth / 2),
       originY = (options.height / 2) - (options.srcHeight / 2),
+      baseScale = 1,
       keyframeDistanceThreshold = (options.srcWidth + options.srcHeight) / (1/options.keyframeDistanceThreshold);
 
   function draw() {
@@ -375,8 +376,6 @@ module.exports = function handleImage(img, options) {
       } else {
 
         var results = matcher.match(img);
-        console.log(results);
-
         if (results.good_matches > options.goodMatchesMin && results.projected_corners) {
 
           var avgOffset = util.averageOffsets(results.projected_corners),
@@ -385,29 +384,31 @@ module.exports = function handleImage(img, options) {
 
           var angleRadians = Math.atan2(results.projected_corners[1].y - results.projected_corners[0].y,
                                         results.projected_corners[1].x - results.projected_corners[0].x);
+          if (options.scaling) var scale = (options.srcWidth) / Math.abs(results.projected_corners[1].x - results.projected_corners[0].x);
+
           ctx.save();
-//          ctx.translate(imgPosX, 
-//                        imgPosY);
           ctx.translate(imgPosX + (options.srcWidth / 2), 
                         imgPosY + (options.srcHeight / 2));
           ctx.rotate(-angleRadians);
-//          var scale = options.srcWidth / Math.abs(results.projected_corners[1].x - results.projected_corners[0].x);
-//          ctx.scale(scale, scale);
+
+          // this just means we are displaying it larger. We actually should scale the point coordinates? The srcWidth?
+          if (options.scaling) ctx.scale(baseScale * scale, baseScale * scale);
           ctx.translate(- (options.srcWidth / 2), 
                         - (options.srcHeight / 2));
           ctx.drawImage(img,
             0, 0,
             options.srcWidth,
             options.srcHeight);
-          ctx.restore();
 
           if (options.annotations) results.annotate(ctx, {x: imgPosX, y: imgPosY}); // draw match points
+          ctx.restore();
 
           // new keyframe if 2x more good matches AND more than options.keyframeDistanceThreshold out from original image
           results.distFromKeyframe = Math.abs(results.projected_corners[0].x) + Math.abs(results.projected_corners[0].y);
           if (results.good_matches > options.goodMatchesMin * options.keyframeThreshold && results.distFromKeyframe > keyframeDistanceThreshold) {
             console.log('new keyframe!');
             matcher.train(img);
+
             if (options.annotations) {
               ctx.save();
               ctx.translate(
@@ -427,7 +428,16 @@ module.exports = function handleImage(img, options) {
                 options.srcWidth,
                 options.srcHeight);
             }
-            // adjust offset to new origin
+
+
+            // adjust ctx transform matrix and origin point
+            if (options.scaling) baseScale = scale; // save base scale
+            ctx.translate(imgPosX + (options.srcWidth / 2), 
+                          imgPosY + (options.srcHeight / 2));
+            ctx.rotate(-angleRadians);
+            ctx.translate(-imgPosX - (options.srcWidth / 2), 
+                          -imgPosY - (options.srcHeight / 2));
+            // adjust to new origin
             originX += -avgOffset.x + (options.srcWidth / 2);
             originY += -avgOffset.y + (options.srcHeight / 2);
           }
@@ -444,10 +454,9 @@ module.exports = function handleImage(img, options) {
   return matcher;
 }
 
-},{"./jsfeat/renderPatternShape.js":15,"./setupMatcher.js":19,"./util/createCanvas.js":21,"./util/util.js":22}],5:[function(require,module,exports){
-module.exports = function annotate_image(ctx, imageData, matches, num_matches, num_corners, good_matches, screen_corners, pattern_corners, shape_pts, pattern_preview, match_mask, offset) {
+},{"./jsfeat/renderPatternShape.js":14,"./setupMatcher.js":18,"./util/createCanvas.js":20,"./util/util.js":21}],5:[function(require,module,exports){
+module.exports = function annotate_image(ctx, imageData, matches, num_matches, num_corners, good_matches, screen_corners, pattern_corners, shape_pts, pattern_preview, match_mask, offset, options) {
   offset = offset || {x: 0, y:0};
-  let render_mono_image = require('./renderMonoImage.js'); 
   let render_corners = require('./renderCorners.js'); 
   let render_matches = require('./renderMatches.js'); 
   let render_pattern_shape = require('./renderPatternShape.js'); 
@@ -457,12 +466,16 @@ module.exports = function annotate_image(ctx, imageData, matches, num_matches, n
   ctx.fillStyle = "rgb(0,255,0)";
   ctx.strokeStyle = "rgb(0,255,0)";
 
-//  if (pattern_preview) render_mono_image(pattern_preview.data, data_u32, pattern_preview.cols, pattern_preview.rows, 640);
-
   // mark found points in imageData to be put onto canvas
-  render_corners(screen_corners, num_corners, data_u32, 640);
+  render_corners(screen_corners, num_corners, data_u32, options.srcWidth);
 
-  ctx.putImageData(imageData, offset.x, offset.y); // write annotations and preview image back onto canvas
+  // putImageData doesn't respect ctx.translate!!!
+  var workingCanvas = document.getElementById('workingCanvas');
+  var workingCtx = workingCanvas.getContext('2d');
+  workingCtx.putImageData(imageData, 0, 0); // write annotations and preview image back onto canvas
+  // transfer to a working canvas so we can rotate it
+  ctx.drawImage(workingCanvas, 0, 0, options.srcWidth, options.srcHeight,
+                               0, 0, options.srcWidth, options.srcHeight);
 
 //  if (num_matches) {
     // connect points with lines:
@@ -472,7 +485,7 @@ module.exports = function annotate_image(ctx, imageData, matches, num_matches, n
 //  }
 }
 
-},{"./renderCorners.js":12,"./renderMatches.js":13,"./renderMonoImage.js":14,"./renderPatternShape.js":15}],6:[function(require,module,exports){
+},{"./renderCorners.js":12,"./renderMatches.js":13,"./renderPatternShape.js":14}],6:[function(require,module,exports){
 module.exports = function detect_keypoints(img, corners, max_allowed) {
   let ic_angle = require('./icAngle.js');
 
@@ -703,17 +716,6 @@ module.exports = function render_matches(ctx, matches, count, screen_corners, pa
 }
 
 },{}],14:[function(require,module,exports){
-module.exports = function render_mono_image(src, dst, sw, sh, dw) {
-  var alpha = (0xff << 24);
-  for(var i = 0; i < sh; ++i) {
-    for(var j = 0; j < sw; ++j) {
-      var pix = src[i*sw+j];
-      dst[i*dw+j] = alpha | (pix << 16) | (pix << 8) | pix;
-    }
-  }
-}
-
-},{}],15:[function(require,module,exports){
 module.exports = function render_pattern_shape(ctx, shape_pts) {
   ctx.strokeStyle = "rgb(0,255,0)";
   ctx.beginPath();
@@ -728,7 +730,7 @@ module.exports = function render_pattern_shape(ctx, shape_pts) {
   ctx.stroke();
 }
 
-},{}],16:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 // project/transform rectangle corners with 3x3 Matrix
 module.exports = function tCorners(M, w, h) {
   var pt = [ {'x':0,'y':0}, {'x':w,'y':0}, {'x':w,'y':h}, {'x':0,'y':h} ];
@@ -745,7 +747,7 @@ module.exports = function tCorners(M, w, h) {
   return pt;
 }
 
-},{}],17:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 // refactor this to accept an image/video?
 module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_preview, pattern_descriptors, pattern_corners, ctx, options) {
   // exposed closure
@@ -860,7 +862,7 @@ module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_pre
   }
 };
 
-},{"./detectKeypoints.js":6}],18:[function(require,module,exports){
+},{"./detectKeypoints.js":6}],17:[function(require,module,exports){
 Scrollgraph = function Scrollgraph(options) {
   options = require('./defaults.js')(options);
   var setupWebcam = require('./setupWebcam.js');
@@ -870,7 +872,7 @@ Scrollgraph = function Scrollgraph(options) {
     var getOrientation = require('o9n').getOrientation;
     var orientation = getOrientation();
     if (orientation === "portrait-secondary" || orientation === "portrait-primary") {
-      console.log('portrait mode');
+      alert('portrait mode');
       // we need to swap the srcWidth and srcHeight
       var swap = options.srcWidth;
       options.srcWidth = options.srcHeight;
@@ -886,7 +888,7 @@ Scrollgraph = function Scrollgraph(options) {
 
 }
 
-},{"./defaults.js":3,"./handleImage.js":4,"./setupWebcam.js":20,"o9n":1}],19:[function(require,module,exports){
+},{"./defaults.js":3,"./handleImage.js":4,"./setupWebcam.js":19,"o9n":1}],18:[function(require,module,exports){
 "use strict";
 module.exports = function setupMatcher(options) {
 
@@ -985,6 +987,7 @@ module.exports = function setupMatcher(options) {
  
     }
 
+    // TODO: re-confirm what we actually need to pass into here
     function annotate(displayCtx, offset) {
       require('./jsfeat/annotateImage.js')(
         displayCtx,
@@ -998,7 +1001,8 @@ module.exports = function setupMatcher(options) {
         projected_corners,
         pattern_preview,
         match_mask,
-        offset);
+        offset,
+        options);
     }
  
     return {
@@ -1018,7 +1022,7 @@ module.exports = function setupMatcher(options) {
 
 }
 
-},{"./jsfeat/annotateImage.js":5,"./jsfeat/detectKeypoints.js":6,"./jsfeat/findTransform.js":7,"./jsfeat/icAngle.js":8,"./jsfeat/matchPattern.js":9,"./jsfeat/matchStructure.js":10,"./jsfeat/tCorners.js":16,"./jsfeat/trainPattern.js":17,"./util/createCanvas.js":21}],20:[function(require,module,exports){
+},{"./jsfeat/annotateImage.js":5,"./jsfeat/detectKeypoints.js":6,"./jsfeat/findTransform.js":7,"./jsfeat/icAngle.js":8,"./jsfeat/matchPattern.js":9,"./jsfeat/matchStructure.js":10,"./jsfeat/tCorners.js":15,"./jsfeat/trainPattern.js":16,"./util/createCanvas.js":20}],19:[function(require,module,exports){
 module.exports = function setupWebcam(options, imageHandler) {
   options.camera = options.camera || { audio: false, video: { 
     width: options.srcWidth,
@@ -1034,6 +1038,8 @@ module.exports = function setupWebcam(options, imageHandler) {
     video.srcObject = mediaStream;
     video.onloadedmetadata = function(e) {
       video.play();
+
+      return imageHandler(video, options);
     };
 
     // turn off camera when done
@@ -1041,13 +1047,11 @@ module.exports = function setupWebcam(options, imageHandler) {
       video.pause();
       video.src = null;
     });
-
-    return imageHandler(video, options);
   })
   .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
 }
 
-},{}],21:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 module.exports = function createCanvas(id, options) {
   var ctx, canvas, height, width;
   id = id || "canvas";
@@ -1063,7 +1067,7 @@ module.exports = function createCanvas(id, options) {
   return ctx;
 }
 
-},{}],22:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 module.exports = function util(options) {
 
   // https://www.pentarem.com/blog/how-to-use-settimeout-with-async-await-in-javascript/
@@ -1135,4 +1139,4 @@ module.exports = function util(options) {
   }
 }
 
-},{}]},{},[3,4,18,19,20,2,5,6,7,8,9,10,11,12,13,14,15,16,17,21,22]);
+},{}]},{},[3,4,17,18,19,2,5,6,7,8,9,10,11,12,13,14,15,16,20,21]);

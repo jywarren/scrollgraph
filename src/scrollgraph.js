@@ -7,7 +7,7 @@ Scrollgraph = function Scrollgraph(options) {
     var getOrientation = require('o9n').getOrientation;
     var orientation = getOrientation();
     if (orientation === "portrait-secondary" || orientation === "portrait-primary") {
-      console.log('portrait mode');
+      alert('portrait mode');
       // we need to swap the srcWidth and srcHeight
       var swap = options.srcWidth;
       options.srcWidth = options.srcHeight;

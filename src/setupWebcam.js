@@ -13,6 +13,8 @@ module.exports = function setupWebcam(options, imageHandler) {
     video.srcObject = mediaStream;
     video.onloadedmetadata = function(e) {
       video.play();
+
+      return imageHandler(video, options);
     };
 
     // turn off camera when done
@@ -20,8 +22,6 @@ module.exports = function setupWebcam(options, imageHandler) {
       video.pause();
       video.src = null;
     });
-
-    return imageHandler(video, options);
   })
   .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
 }

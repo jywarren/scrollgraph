@@ -96,6 +96,7 @@ module.exports = function setupMatcher(options) {
  
     }
 
+    // TODO: re-confirm what we actually need to pass into here
     function annotate(displayCtx, offset) {
       require('./jsfeat/annotateImage.js')(
         displayCtx,
@@ -109,7 +110,8 @@ module.exports = function setupMatcher(options) {
         projected_corners,
         pattern_preview,
         match_mask,
-        offset);
+        offset,
+        options);
     }
  
     return {

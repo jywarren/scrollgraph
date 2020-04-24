@@ -13,6 +13,7 @@ module.exports = function handleImage(img, options) {
   var isFirst = true,
       originX = (options.width / 2) - (options.srcWidth / 2),
       originY = (options.height / 2) - (options.srcHeight / 2),
+      baseScale = 1,
       keyframeDistanceThreshold = (options.srcWidth + options.srcHeight) / (1/options.keyframeDistanceThreshold);
 
   function draw() {
@@ -29,8 +30,6 @@ module.exports = function handleImage(img, options) {
       } else {
 
         var results = matcher.match(img);
-        console.log(results);
-
         if (results.good_matches > options.goodMatchesMin && results.projected_corners) {
 
           var avgOffset = util.averageOffsets(results.projected_corners),
@@ -39,29 +38,31 @@ module.exports = function handleImage(img, options) {
 
           var angleRadians = Math.atan2(results.projected_corners[1].y - results.projected_corners[0].y,
                                         results.projected_corners[1].x - results.projected_corners[0].x);
+          if (options.scaling) var scale = (options.srcWidth) / Math.abs(results.projected_corners[1].x - results.projected_corners[0].x);
+
           ctx.save();
-//          ctx.translate(imgPosX, 
-//                        imgPosY);
           ctx.translate(imgPosX + (options.srcWidth / 2), 
                         imgPosY + (options.srcHeight / 2));
           ctx.rotate(-angleRadians);
-//          var scale = options.srcWidth / Math.abs(results.projected_corners[1].x - results.projected_corners[0].x);
-//          ctx.scale(scale, scale);
+
+          // this just means we are displaying it larger. We actually should scale the point coordinates? The srcWidth?
+          if (options.scaling) ctx.scale(baseScale * scale, baseScale * scale);
           ctx.translate(- (options.srcWidth / 2), 
                         - (options.srcHeight / 2));
           ctx.drawImage(img,
             0, 0,
             options.srcWidth,
             options.srcHeight);
-          ctx.restore();
 
           if (options.annotations) results.annotate(ctx, {x: imgPosX, y: imgPosY}); // draw match points
+          ctx.restore();
 
           // new keyframe if 2x more good matches AND more than options.keyframeDistanceThreshold out from original image
           results.distFromKeyframe = Math.abs(results.projected_corners[0].x) + Math.abs(results.projected_corners[0].y);
           if (results.good_matches > options.goodMatchesMin * options.keyframeThreshold && results.distFromKeyframe > keyframeDistanceThreshold) {
             console.log('new keyframe!');
             matcher.train(img);
+
             if (options.annotations) {
               ctx.save();
               ctx.translate(
@@ -81,7 +82,16 @@ module.exports = function handleImage(img, options) {
                 options.srcWidth,
                 options.srcHeight);
             }
-            // adjust offset to new origin
+
+
+            // adjust ctx transform matrix and origin point
+            if (options.scaling) baseScale = scale; // save base scale
+            ctx.translate(imgPosX + (options.srcWidth / 2), 
+                          imgPosY + (options.srcHeight / 2));
+            ctx.rotate(-angleRadians);
+            ctx.translate(-imgPosX - (options.srcWidth / 2), 
+                          -imgPosY - (options.srcHeight / 2));
+            // adjust to new origin
             originX += -avgOffset.x + (options.srcWidth / 2);
             originY += -avgOffset.y + (options.srcHeight / 2);
           }
