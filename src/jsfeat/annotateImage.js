@@ -1,6 +1,5 @@
-module.exports = function annotate_image(ctx, imageData, matches, num_matches, num_corners, good_matches, screen_corners, pattern_corners, shape_pts, pattern_preview, match_mask, offset) {
+module.exports = function annotate_image(ctx, imageData, matches, num_matches, num_corners, good_matches, screen_corners, pattern_corners, shape_pts, pattern_preview, match_mask, offset, options) {
   offset = offset || {x: 0, y:0};
-  let render_mono_image = require('./renderMonoImage.js'); 
   let render_corners = require('./renderCorners.js'); 
   let render_matches = require('./renderMatches.js'); 
   let render_pattern_shape = require('./renderPatternShape.js'); 
@@ -10,12 +9,16 @@ module.exports = function annotate_image(ctx, imageData, matches, num_matches, n
   ctx.fillStyle = "rgb(0,255,0)";
   ctx.strokeStyle = "rgb(0,255,0)";
 
-//  if (pattern_preview) render_mono_image(pattern_preview.data, data_u32, pattern_preview.cols, pattern_preview.rows, 640);
-
   // mark found points in imageData to be put onto canvas
-  render_corners(screen_corners, num_corners, data_u32, 640);
+  render_corners(screen_corners, num_corners, data_u32, options.srcWidth);
 
-  ctx.putImageData(imageData, offset.x, offset.y); // write annotations and preview image back onto canvas
+  // putImageData doesn't respect ctx.translate!!!
+  var workingCanvas = document.getElementById('workingCanvas');
+  var workingCtx = workingCanvas.getContext('2d');
+  workingCtx.putImageData(imageData, 0, 0); // write annotations and preview image back onto canvas
+  // transfer to a working canvas so we can rotate it
+  ctx.drawImage(workingCanvas, 0, 0, options.srcWidth, options.srcHeight,
+                               0, 0, options.srcWidth, options.srcHeight);
 
 //  if (num_matches) {
     // connect points with lines:
