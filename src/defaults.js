@@ -2,7 +2,7 @@ module.exports = function defaults(options) {
   options.goodMatchesMin = options.goodMatchesMin || 8;
   options.keyframeThreshold = options.keyframeThreshold || 2;
   options.keyframeDistanceThreshold = options.keyframeDistanceThreshold || 1/3;
-  options.annotations = options.annotations === false || true;
+  options.annotations = options.annotations === true || false;
   options.srcWidth = options.srcWidth || 800;
   options.srcHeight = options.srcHeight || 600; 
   options.canvasOffset = options.canvasOffset || {

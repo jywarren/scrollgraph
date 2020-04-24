@@ -45,6 +45,8 @@ Create high res images by scrolling around at low res in video.
 * [x] add rotation
 * [x] tweak cumulative offest settings
 
+* [ ] reject blurry keyframes
+* [ ] fix annotations off
 
 * [ ] try placing using WebGL/glfx.js: https://github.com/jywarren/webgl-distort/blob/main/dist/webgl-distort.js
 * [ ] bump stuff to another thread? Web Workers?
