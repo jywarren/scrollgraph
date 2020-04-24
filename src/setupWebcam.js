@@ -1,6 +1,13 @@
 module.exports = function setupWebcam(options, imageHandler) {
+  options.camera = options.camera || { audio: false, video: { 
+    width: options.srcWidth,
+    height: options.srcHeight, 
+    facingMode: "environment"
+  } }; 
   var video = document.querySelector('video');
-  // refactor this so that the image fetch layer is abstract, can swap
+  $(video).width(options.srcWidth)
+          .height(options.srcHeight);
+
   navigator.mediaDevices.getUserMedia(options.camera)
   .then(function(mediaStream) {
     video.srcObject = mediaStream;
