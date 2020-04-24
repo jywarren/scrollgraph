@@ -1,4 +1,276 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+'use strict';
+
+function getOrientation() {
+  if (!window) return undefined;
+  var screen = window.screen;
+  var orientation;
+
+  // W3C spec implementation
+  if (
+    typeof window.ScreenOrientation === 'function' &&
+    screen.orientation instanceof ScreenOrientation &&
+    typeof screen.orientation.addEventListener == 'function' &&
+    screen.orientation.onchange === null &&
+    typeof screen.orientation.type === 'string'
+  ) {
+    orientation = screen.orientation;
+  } else {
+    orientation = createOrientation();
+  }
+
+  return orientation;
+}
+
+module.exports = {
+  orientation: getOrientation(),
+  getOrientation: getOrientation,
+  install: function install () {
+    var screen = window.screen;
+    if (typeof window.ScreenOrientation === 'function' &&
+      screen.orientation instanceof ScreenOrientation) {
+      return screen.orientation;
+    }
+    window.screen.orientation = orientation;
+    return orientation;
+  }
+};
+
+function createOrientation () {
+  var orientationMap = {
+    '90': 'landscape-primary',
+    '-90': 'landscape-secondary',
+    '0': 'portrait-primary',
+    '180': 'portrait-secondary'
+  };
+
+  function ScreenOrientation() {}
+  var or = new ScreenOrientation();
+
+  var found = findDelegate(or);
+
+  ScreenOrientation.prototype.addEventListener = delegate('addEventListener', found.delegate, found.event);
+  ScreenOrientation.prototype.dispatchEvent = delegate('dispatchEvent', found.delegate, found.event);
+  ScreenOrientation.prototype.removeEventListener = delegate('removeEventListener', found.delegate, found.event);
+  ScreenOrientation.prototype.lock = getLock();
+  ScreenOrientation.prototype.unlock = getUnlock();
+
+
+  Object.defineProperties(or, {
+    onchange: {
+      get: function () {
+        return found.delegate['on' + found.event] || null;
+      },
+      set: function (cb) {
+        found.delegate['on' + found.event] = wrapCallback(cb, or);
+      }
+    },
+    type: {
+      get: function () {
+        var screen = window.screen;
+        return screen.msOrientation || screen.mozOrientation ||
+          orientationMap[window.orientation + ''] ||
+          (getMql().matches ? 'landscape-primary' : 'portrait-primary');
+      }
+    },
+    angle: {
+      value: 0
+    }
+  });
+
+  return or;
+}
+
+function delegate (fnName, delegateContext, eventName) {
+  var that = this;
+  return function delegated () {
+    var args = Array.prototype.slice.call(arguments);
+    var actualEvent = args[0].type ? args[0].type : args[0];
+    if (actualEvent !== 'change') {
+      return;
+    }
+    if (args[0].type) {
+      args[0] = getOrientationChangeEvent(eventName, args[0]);
+    } else {
+      args[0] = eventName;
+    }
+    var wrapped = wrapCallback(args[1], that);
+    if (fnName === 'addEventListener') {
+      addTrackedListener(args[1], wrapped);
+    }
+    if (fnName === 'removeEventListener') {
+      removeTrackedListener(args[1]);
+    }
+    args[1] = wrapped;
+    return delegateContext[fnName].apply(delegateContext, args);
+  };
+}
+
+var trackedListeners = [];
+var originalListeners = [];
+
+function addTrackedListener(original, wrapped) {
+  var idx = originalListeners.indexOf(original);
+  if (idx > -1) {
+    trackedListeners[idx] = wrapped;
+  } else {
+    originalListeners.push(original);
+    trackedListeners.push(wrapped);
+  }
+}
+
+function removeTrackedListener(original) {
+  var idx = originalListeners.indexOf(original);
+  if (idx > -1) {
+    originalListeners.splice(idx, 1);
+    trackedListeners.splice(idx, 1);
+  }
+}
+
+function wrapCallback(cb, orientation) {
+  var idx = originalListeners.indexOf(cb);
+  if (idx > -1) {
+    return trackedListeners[idx];
+  }
+  return function wrapped (evt) {
+    if (evt.target !== orientation) {
+      defineValue(evt, 'target', orientation);
+    }
+    if (evt.currentTarget !== orientation) {
+      defineValue(evt, 'currentTarget', orientation);
+    }
+    if (evt.type !== 'change') {
+      defineValue(evt, 'type', 'change');
+    }
+    cb(evt);
+  };
+}
+
+function getLock () {
+  var err = 'lockOrientation() is not available on this device.';
+  var delegateFn;
+  var screen = window.screen;
+  if (typeof screen.msLockOrientation == 'function') {
+    delegateFn = screen.msLockOrientation.bind(screen);
+  } else if (typeof screen.mozLockOrientation == 'function') {
+    delegateFn = screen.mozLockOrientation.bind(screen);
+  } else {
+    delegateFn = function () { return false; };
+  }
+
+  return function lock(lockType) {
+    const Promise = window.Promise;
+    if (delegateFn(lockType)) {
+      return Promise.resolve(lockType);
+    } else {
+      return Promise.reject(new Error(err));
+    }
+  };
+}
+
+function getUnlock () {
+  var screen = window.screen;
+  return screen.orientation && screen.orientation.unlock.bind(screen.orientation) ||
+    screen.msUnlockOrientation && screen.msUnlockOrientation.bind(screen) ||
+    screen.mozUnlockOrientation && screen.mozUnlockOrientation.bind(screen) ||
+    function unlock () { return; };
+}
+
+function findDelegate (orientation) {
+  var events = ['orientationchange', 'mozorientationchange', 'msorientationchange'];
+
+  for (var i = 0; i < events.length; i++) {
+    if (screen['on' + events[i]] === null) {
+      return {
+        delegate: screen,
+        event: events[i]
+      };
+    }
+  }
+
+  if (typeof window.onorientationchange != 'undefined') {
+    return {
+      delegate: window,
+      event: 'orientationchange'
+    };
+  }
+
+  return {
+    delegate: createOwnDelegate(orientation),
+    event: 'change'
+  };
+}
+
+function getOrientationChangeEvent (name, props) {
+  var orientationChangeEvt;
+
+  try {
+    orientationChangeEvt = new Event(name, props);
+  } catch (e) {
+    orientationChangeEvt = { type: 'change' };
+  }
+  return orientationChangeEvt;
+}
+
+function createOwnDelegate(orientation) {
+  var ownDelegate = Object.create({
+    addEventListener: function addEventListener(evt, cb) {
+      if (!this.listeners[evt]) {
+        this.listeners[evt] = [];
+      }
+      if (this.listeners[evt].indexOf(cb) === -1) {
+        this.listeners[evt].push(cb);
+      }
+    },
+    dispatchEvent: function dispatchEvent(evt) {
+      if (!this.listeners[evt.type]) {
+        return;
+      }
+      this.listeners[evt.type].forEach(function(fn) {
+        fn(evt);
+      });
+      if (typeof orientation.onchange == 'function') {
+        orientation.onchange(evt);
+      }
+    },
+    removeEventListener: function removeEventListener(evt, cb) {
+      if (!this.listeners[evt]) {
+        return;
+      }
+      var idx = this.listeners[evt].indexOf(cb);
+      if (idx > -1) {
+        this.listeners[evt].splice(idx, 1);
+      }
+    },
+  });
+
+  ownDelegate.listeners = {};
+
+  var mql = getMql();
+
+  if (mql && typeof mql.matches === 'boolean') {
+    mql.addListener(function() {
+      ownDelegate.dispatchEvent(getOrientationChangeEvent('change'));
+    });
+  }
+
+  return ownDelegate;
+}
+
+function getMql () {
+  if (typeof window.matchMedia != 'function') {
+    return {};
+  }
+  return window.matchMedia('(orientation: landscape)');
+}
+
+function defineValue(obj, key, val) {
+  Object.defineProperty(obj, key, {
+    value: val
+  });
+}
+
+},{}],2:[function(require,module,exports){
 function annotate(points, ctx, offset) {
   setTimeout(function() {
 
@@ -55,7 +327,7 @@ function annotate(points, ctx, offset) {
 }
 module.exports = annotate;
 
-},{}],2:[function(require,module,exports){
+},{}],3:[function(require,module,exports){
 module.exports = function defaults(options) {
   options.goodMatchesMin = options.goodMatchesMin || 8;
   options.keyframeThreshold = options.keyframeThreshold || 2;
@@ -63,20 +335,15 @@ module.exports = function defaults(options) {
   options.annotations = options.annotations === true || false;
   options.srcWidth = options.srcWidth || 800;
   options.srcHeight = options.srcHeight || 600; 
+  // the center of the canvas, offset by -1/2 the image dimensions
   options.canvasOffset = options.canvasOffset || {
     x: options.width/2 - options.srcWidth/2,
     y: options.height/2 - options.srcHeight/2
   }
-  // Prefer camera resolution nearest to 1280x720.
-  options.camera = options.camera || { audio: false, video: { 
-    width: options.srcWidth,
-    height: options.srcHeight, 
-    facingMode: "environment"
-  } }; 
   return options;
 }
 
-},{}],3:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 // maps incoming image to the canvas for scrollgraph program
 module.exports = function handleImage(img, options) {
   var matcher;
@@ -129,7 +396,7 @@ module.exports = function handleImage(img, options) {
 
           if (options.annotations) results.annotate(ctx, {x: imgPosX, y: imgPosY}); // draw match points
 
-          // new keyframe if 2x more good matches AND more than 50% out from original image
+          // new keyframe if 2x more good matches AND more than options.keyframeDistanceThreshold out from original image
           results.distFromKeyframe = Math.abs(results.projected_corners[0].x) + Math.abs(results.projected_corners[0].y);
           if (results.good_matches > options.goodMatchesMin * options.keyframeThreshold && results.distFromKeyframe > keyframeDistanceThreshold) {
             console.log('new keyframe!');
@@ -147,7 +414,7 @@ module.exports = function handleImage(img, options) {
            
               ctx.restore();
               ctx.strokeStyle = "yellow";
-              if (options.annotations) ctx.strokeRect(
+              ctx.strokeRect(
                 imgPosX,
                 imgPosY,
                 options.srcWidth,
@@ -170,7 +437,7 @@ module.exports = function handleImage(img, options) {
   return matcher;
 }
 
-},{"./jsfeat/renderPatternShape.js":14,"./setupMatcher.js":18,"./util/createCanvas.js":20,"./util/util.js":21}],4:[function(require,module,exports){
+},{"./jsfeat/renderPatternShape.js":15,"./setupMatcher.js":19,"./util/createCanvas.js":21,"./util/util.js":22}],5:[function(require,module,exports){
 module.exports = function annotate_image(ctx, imageData, matches, num_matches, num_corners, good_matches, screen_corners, pattern_corners, shape_pts, pattern_preview, match_mask, offset) {
   offset = offset || {x: 0, y:0};
   let render_mono_image = require('./renderMonoImage.js'); 
@@ -198,7 +465,7 @@ module.exports = function annotate_image(ctx, imageData, matches, num_matches, n
 //  }
 }
 
-},{"./renderCorners.js":11,"./renderMatches.js":12,"./renderMonoImage.js":13,"./renderPatternShape.js":14}],5:[function(require,module,exports){
+},{"./renderCorners.js":12,"./renderMatches.js":13,"./renderMonoImage.js":14,"./renderPatternShape.js":15}],6:[function(require,module,exports){
 module.exports = function detect_keypoints(img, corners, max_allowed) {
   let ic_angle = require('./icAngle.js');
 
@@ -219,7 +486,7 @@ module.exports = function detect_keypoints(img, corners, max_allowed) {
   return count;
 }
 
-},{"./icAngle.js":7}],6:[function(require,module,exports){
+},{"./icAngle.js":8}],7:[function(require,module,exports){
 // estimate homography transform between matched points
 module.exports = function find_transform(matches, count, screen_corners, pattern_corners, homo3x3, match_mask) {
   // motion kernel
@@ -268,7 +535,7 @@ module.exports = function find_transform(matches, count, screen_corners, pattern
   return good_cnt;
 }
 
-},{}],7:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 // central difference using image moments to find dominant orientation
 var u_max = new Int32Array([15,15,15,15,14,14,14,13,13,12,11,10,9,8,6,3,0]);
 module.exports = function ic_angle(img, px, py) {
@@ -299,7 +566,7 @@ module.exports = function ic_angle(img, px, py) {
   return Math.atan2(m_01, m_10);
 }
 
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 // naive brute-force matching.
 // each on screen point is compared to all pattern points
 // to find the closest match
@@ -369,7 +636,7 @@ module.exports = function match_pattern(screen_descriptors, pattern_descriptors,
   return num_matches;
 }
 
-},{"./popcnt32.js":10}],9:[function(require,module,exports){
+},{"./popcnt32.js":11}],10:[function(require,module,exports){
 module.exports = (function () {
   function match_t(screen_idx, pattern_lev, pattern_idx, distance) {
     if (typeof screen_idx === "undefined") { screen_idx=0; }
@@ -385,7 +652,7 @@ module.exports = (function () {
   return match_t;
 })
 
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 // non zero bits count
 module.exports = function popcnt32(n) {
   n -= ((n >> 1) & 0x55555555);
@@ -393,7 +660,7 @@ module.exports = function popcnt32(n) {
   return (((n + (n >> 4))& 0xF0F0F0F)* 0x1010101) >> 24;
 }
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 // draws tiny +s on the canvas where there are corners
 module.exports = function render_corners(corners, count, img, step) {
   var pix = (0xff << 24) | (0x00 << 16) | (0xff << 8) | 0x00;
@@ -409,7 +676,7 @@ module.exports = function render_corners(corners, count, img, step) {
   }
 }
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 module.exports = function render_matches(ctx, matches, count, screen_corners, pattern_corners, match_mask) {
   for(var i = 0; i < count; ++i) {
     var m = matches[i];
@@ -428,7 +695,7 @@ module.exports = function render_matches(ctx, matches, count, screen_corners, pa
   }
 }
 
-},{}],13:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 module.exports = function render_mono_image(src, dst, sw, sh, dw) {
   var alpha = (0xff << 24);
   for(var i = 0; i < sh; ++i) {
@@ -439,7 +706,7 @@ module.exports = function render_mono_image(src, dst, sw, sh, dw) {
   }
 }
 
-},{}],14:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 module.exports = function render_pattern_shape(ctx, shape_pts) {
   ctx.strokeStyle = "rgb(0,255,0)";
   ctx.beginPath();
@@ -454,7 +721,7 @@ module.exports = function render_pattern_shape(ctx, shape_pts) {
   ctx.stroke();
 }
 
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 // project/transform rectangle corners with 3x3 Matrix
 module.exports = function tCorners(M, w, h) {
   var pt = [ {'x':0,'y':0}, {'x':w,'y':0}, {'x':w,'y':h}, {'x':0,'y':h} ];
@@ -471,7 +738,7 @@ module.exports = function tCorners(M, w, h) {
   return pt;
 }
 
-},{}],16:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 // refactor this to accept an image/video?
 module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_preview, pattern_descriptors, pattern_corners, ctx, options) {
   // exposed closure
@@ -586,12 +853,25 @@ module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_pre
   }
 };
 
-},{"./detectKeypoints.js":5}],17:[function(require,module,exports){
+},{"./detectKeypoints.js":6}],18:[function(require,module,exports){
 Scrollgraph = function Scrollgraph(options) {
   options = require('./defaults.js')(options);
   var setupWebcam = require('./setupWebcam.js');
 
   return new Promise(function(resolve, reject) { 
+
+    var getOrientation = require('o9n').getOrientation;
+    var orientation = getOrientation();
+    if (orientation === "portrait-secondary" || orientation === "portrait-primary") {
+      console.log('portrait mode');
+      // we need to swap the srcWidth and srcHeight
+      var swap = options.srcWidth;
+      options.srcWidth = options.srcHeight;
+      options.srcHeight = swap;
+      options = require('./defaults.js')(options); // re-run to re-calc canvasOffset
+      $('#workingCanvas').width(options.srcWidth)
+                         .height(options.srcHeight);
+    } 
 
     resolve(setupWebcam(options, require('./handleImage.js')));
 
@@ -599,7 +879,7 @@ Scrollgraph = function Scrollgraph(options) {
 
 }
 
-},{"./defaults.js":2,"./handleImage.js":3,"./setupWebcam.js":19}],18:[function(require,module,exports){
+},{"./defaults.js":3,"./handleImage.js":4,"./setupWebcam.js":20,"o9n":1}],19:[function(require,module,exports){
 "use strict";
 module.exports = function setupMatcher(options) {
 
@@ -731,10 +1011,17 @@ module.exports = function setupMatcher(options) {
 
 }
 
-},{"./jsfeat/annotateImage.js":4,"./jsfeat/detectKeypoints.js":5,"./jsfeat/findTransform.js":6,"./jsfeat/icAngle.js":7,"./jsfeat/matchPattern.js":8,"./jsfeat/matchStructure.js":9,"./jsfeat/tCorners.js":15,"./jsfeat/trainPattern.js":16,"./util/createCanvas.js":20}],19:[function(require,module,exports){
+},{"./jsfeat/annotateImage.js":5,"./jsfeat/detectKeypoints.js":6,"./jsfeat/findTransform.js":7,"./jsfeat/icAngle.js":8,"./jsfeat/matchPattern.js":9,"./jsfeat/matchStructure.js":10,"./jsfeat/tCorners.js":16,"./jsfeat/trainPattern.js":17,"./util/createCanvas.js":21}],20:[function(require,module,exports){
 module.exports = function setupWebcam(options, imageHandler) {
+  options.camera = options.camera || { audio: false, video: { 
+    width: options.srcWidth,
+    height: options.srcHeight, 
+    facingMode: "environment"
+  } }; 
   var video = document.querySelector('video');
-  // refactor this so that the image fetch layer is abstract, can swap
+  $(video).width(options.srcWidth)
+          .height(options.srcHeight);
+
   navigator.mediaDevices.getUserMedia(options.camera)
   .then(function(mediaStream) {
     video.srcObject = mediaStream;
@@ -753,7 +1040,7 @@ module.exports = function setupWebcam(options, imageHandler) {
   .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
 }
 
-},{}],20:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 module.exports = function createCanvas(id, options) {
   var ctx, canvas, height, width;
   id = id || "canvas";
@@ -769,7 +1056,7 @@ module.exports = function createCanvas(id, options) {
   return ctx;
 }
 
-},{}],21:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 module.exports = function util(options) {
 
   // https://www.pentarem.com/blog/how-to-use-settimeout-with-async-await-in-javascript/
@@ -841,4 +1128,4 @@ module.exports = function util(options) {
   }
 }
 
-},{}]},{},[2,3,17,18,19,1,4,5,6,7,8,9,10,11,12,13,14,15,16,20,21]);
+},{}]},{},[3,4,18,19,20,2,5,6,7,8,9,10,11,12,13,14,15,16,17,21,22]);

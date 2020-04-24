@@ -50,7 +50,7 @@ module.exports = function handleImage(img, options) {
 
           if (options.annotations) results.annotate(ctx, {x: imgPosX, y: imgPosY}); // draw match points
 
-          // new keyframe if 2x more good matches AND more than 50% out from original image
+          // new keyframe if 2x more good matches AND more than options.keyframeDistanceThreshold out from original image
           results.distFromKeyframe = Math.abs(results.projected_corners[0].x) + Math.abs(results.projected_corners[0].y);
           if (results.good_matches > options.goodMatchesMin * options.keyframeThreshold && results.distFromKeyframe > keyframeDistanceThreshold) {
             console.log('new keyframe!');
@@ -68,7 +68,7 @@ module.exports = function handleImage(img, options) {
            
               ctx.restore();
               ctx.strokeStyle = "yellow";
-              if (options.annotations) ctx.strokeRect(
+              ctx.strokeRect(
                 imgPosX,
                 imgPosY,
                 options.srcWidth,

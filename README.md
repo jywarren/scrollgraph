@@ -44,9 +44,18 @@ Create high res images by scrolling around at low res in video.
 * [x] use x,y offset + num matches to find new keyframes. Plus high rankings
 * [x] add rotation
 * [x] tweak cumulative offest settings
+* [ ] detect landscape/portrait
 
 * [ ] reject blurry keyframes
-* [ ] fix annotations off
+* [ ] optimizations:
+  * [ ] keyframes must not happen too often
+  * [ ] cap points from each image
+  * [ ] can we use only lower res keyframes? 1/2 resolution? options.keyframeScale !
+* [ ] scale images according to points 1 and 2
+
+* [ ] if no matches for X seconds, try other past keyframes?
+
+
 
 * [ ] try placing using WebGL/glfx.js: https://github.com/jywarren/webgl-distort/blob/main/dist/webgl-distort.js
 * [ ] bump stuff to another thread? Web Workers?
