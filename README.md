@@ -55,6 +55,8 @@ A range of tweaks and optimizations have been added to create a more responsive 
 * [ ] use intermediate canvas to perform masking?
 * [ ] use sharp arc() to prevent creep of matching canvas?
 
+* [ ] set default train() to train($('video')[0])
+
 * [ ] figure out canvas scaling to not be a gigantic webpage? div scrolling?
   * google canvas page scale
 

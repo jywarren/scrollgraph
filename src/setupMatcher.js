@@ -25,9 +25,9 @@ module.exports = function setupMatcher(options) {
 
     var mask = new Image();
     mask.onload = function() {
-      ctx.globalCompositeOperation = 'destination-in';
-      ctx.drawImage(mask, 0, 0, options.smallerSrcDimension, options.smallerSrcDimension);
-      ctx.globalCompositeOperation = 'source-in';
+//      ctx.globalCompositeOperation = 'destination-in';
+//      ctx.drawImage(mask, 0, 0, options.smallerSrcDimension, options.smallerSrcDimension);
+//      ctx.globalCompositeOperation = 'source-in';
     }
     mask.src = 'images/circle.png';
  

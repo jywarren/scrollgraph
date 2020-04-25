@@ -5,8 +5,8 @@ module.exports = function handleImage(img, options) {
       util = require('./util/util.js')(options);
   var ctx = createCanvas('canvas', options);
 
-  var mask = new Image();
-  mask.onload = function() {
+//  var mask = new Image();
+//  mask.onload = function() {
 //    ctx.globalCompositeOperation = 'destination-in';
 //    ctx.drawImage(mask, 0, 0, options.smallerSrcDimension, options.smallerSrcDimension);
 //    ctx.globalCompositeOperation = 'source-in';
@@ -15,8 +15,8 @@ module.exports = function handleImage(img, options) {
  
     // initiate first frame
     compatibility.requestAnimationFrame(draw);
-  }
-  mask.src = 'images/circle.png';
+//  }
+//  mask.src = 'images/circle.png';
 
   // start by matching against first
   var isFirst = true,

@@ -15,7 +15,8 @@
     <canvas id="workingCanvas" width="640" height="480" style="display:none;"></canvas>
 
     <div class="toolbar">
-      <a class="btn btn-secondary" onClick="scrollgraph.setOption('annotations', false);">Annotations</a>
+      <a class="btn btn-lg btn-secondary" onClick="scrollgraph.setOption('annotations', false);">Annotations</a>
+      <a class="btn btn-lg btn-secondary" onClick="scrollgraph.train($('video')[0])">Retrain</a>
     </div>
 
     <script type="text/javascript" src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
