@@ -10,5 +10,7 @@ module.exports = function defaults(options) {
     x: options.width/2 - options.srcWidth/2,
     y: options.height/2 - options.srcHeight/2
   }
+  options.smallerSrcDimension = options.srcWidth;
+  if (options.srcHeight < options.srcWidth) options.smallerSrcDimension = options.srcHeight;
   return options;
 }

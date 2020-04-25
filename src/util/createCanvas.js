@@ -8,7 +8,7 @@ module.exports = function createCanvas(id, options) {
   canvas.width = width;
   canvas.height = height;
   $(canvas).css('height', $(canvas).width() + 'px');
-  ctx.fillStyle = '#eee'; // background
+  ctx.fillStyle = '#000'; // background
   ctx.fillRect(0, 0, options.width, options.height);
   return ctx;
 }

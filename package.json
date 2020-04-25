@@ -20,7 +20,7 @@
     "url": "https://github.com/jywarren/scrollgraph/issues"
   },
   "dependencies": {
-    "bootstrap": "~3.4.0",
+    "bootstrap": "^4.4.1",
     "font-awesome": "~4.7.0",
     "getusermedia-js": "~1.0.0",
     "grunt": "^1.1.0",
