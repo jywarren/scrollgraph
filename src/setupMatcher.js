@@ -22,35 +22,47 @@ module.exports = function setupMatcher(options) {
   function initialize(videoWidth, videoHeight) {
     canvasWidth  = canvas.width;
     canvasHeight = canvas.height;
+
+    var mask = new Image();
+    mask.onload = function() {
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.drawImage(mask, 0, 0, options.smallerSrcDimension, options.smallerSrcDimension);
+      ctx.globalCompositeOperation = 'source-in';
+    }
+    mask.src = 'images/circle.png';
  
     // our point match structure
     var match_t = require('./jsfeat/matchStructure.js')();
- 
+
     img_u8 = new jsfeat.matrix_t(options.srcWidth, options.srcHeight, jsfeat.U8_t | jsfeat.C1_t);
     // after blur
     img_u8_smooth = new jsfeat.matrix_t(options.srcWidth, options.srcHeight, jsfeat.U8_t | jsfeat.C1_t);
     // we wll limit to 500 strongest points
     screen_descriptors = new jsfeat.matrix_t(32, 500, jsfeat.U8_t | jsfeat.C1_t);
     pattern_descriptors = [];
- 
+
     screen_corners = [];
     pattern_corners = [];
     matches = [];
- 
+
     var i = options.srcWidth * options.srcHeight;
     while (--i >= 0) {
       screen_corners[i] = new jsfeat.keypoint_t(0,0,0,0,-1);
       matches[i] = new match_t();
     }
- 
+
     // transform matrix
     homo3x3 = new jsfeat.matrix_t(3,3,jsfeat.F32C1_t);
     match_mask = new jsfeat.matrix_t(500,1,jsfeat.U8C1_t);
- 
+
     options.blur_size = options.blur_size || 5;
     options.lap_thres = options.lap_thres || 30;
     options.eigen_thres = options.eigen_thres || 25;
     options.match_threshold = options.match_threshold || 48;
+  }
+
+  function setOption(key, value) {
+    options[key] = value;
   }
 
   function train(img) {
@@ -126,7 +138,8 @@ module.exports = function setupMatcher(options) {
 
   return {
     train: train,
-    match: match
+    match: match,
+    setOption: setOption
   }
 
 }
