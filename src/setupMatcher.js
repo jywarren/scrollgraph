@@ -22,14 +22,6 @@ module.exports = function setupMatcher(options) {
   function initialize(videoWidth, videoHeight) {
     canvasWidth  = canvas.width;
     canvasHeight = canvas.height;
-
-    var mask = new Image();
-    mask.onload = function() {
-//      ctx.globalCompositeOperation = 'destination-in';
-//      ctx.drawImage(mask, 0, 0, options.smallerSrcDimension, options.smallerSrcDimension);
-//      ctx.globalCompositeOperation = 'source-in';
-    }
-    mask.src = 'images/circle.png';
  
     // our point match structure
     var match_t = require('./jsfeat/matchStructure.js')();

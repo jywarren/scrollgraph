@@ -8,6 +8,7 @@ Create high res images by scrolling around at low res in video.
 
 * `debug`: show debug comments in the log
 * `annotations`: display markers in the canvas to help debugging
+* `vignette`: draw to the canvas in an edge-blurred circle, to improve image compositing and look awesome (reduces field of view of image, though)
 * `goodMatchesMin`: default 8; frames must have this many good matches to be displayed
 * `keyframeThreshold`: default 2; keyframes must have 2x number of good matches
 * `keyframeDistanceThreshold`: default 1/3; keyframes must be this far off of last keyframe origin
@@ -51,11 +52,7 @@ A range of tweaks and optimizations have been added to create a more responsive 
 
 ### To do
 
-* [ ] make mask larger
-* [ ] use intermediate canvas to perform masking?
-* [ ] use sharp arc() to prevent creep of matching canvas?
-
-* [ ] set default train() to train($('video')[0])
+* [] set default train() to train($('video')[0])
 
 * [ ] figure out canvas scaling to not be a gigantic webpage? div scrolling?
   * google canvas page scale
@@ -65,6 +62,7 @@ A range of tweaks and optimizations have been added to create a more responsive 
   * [x] keyframes must not happen too often - balance with responsiveness...? use time/distance threshold?
   * [ ] cap points from each image
   * [ ] can we use only lower res keyframes? 1/2 resolution? options.keyframeScale !
+* [ ] we could say, if it's been 2 seconds since last keyframe, try a lower threshold?
 
 * [x] if no matches for X seconds, try other past keyframes?
   * we relax thresholds for both frames and keyframes if no recent matches have been made (500ms)
@@ -115,3 +113,7 @@ A range of tweaks and optimizations have been added to create a more responsive 
     * maybe solved! Needs testing...
 * [x] figure out ~10px error in keyframe placement, see if this addresses drift
     * see if rotation fixes solve this... i think it does... keep testing
+* [x] make mask larger
+* [x] use intermediate canvas to perform masking?
+* [x] do NOT mask on the working canvas... just on pasting onto the display canvas
+
