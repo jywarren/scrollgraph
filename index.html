@@ -30,7 +30,8 @@
     $(window).load(function() {
       Scrollgraph({
         debug: true,
-        annotations: true,
+        annotations: false,
+        vignette: true,
         goodMatchesMin: 10, // default 8; frames must have this many good matches to be displayed
         keyframeThreshold: 1.2, // default 2; keyframes must have 2x number of good matches
         keyframeDistanceThreshold: 1/9, // default 1/3; keyframes must be this far off of last keyframe origin

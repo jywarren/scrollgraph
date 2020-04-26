@@ -4,7 +4,7 @@ module.exports = function setupWebcam(options, imageHandler) {
     height: options.srcHeight, 
     facingMode: "environment"
   } }; 
-  return new Promise(function(resolve, reject) { 
+  return new Promise(async function(resolve, reject) { 
     var video = document.querySelector('video');
     $(video).width(options.srcWidth)
             .height(options.srcHeight);
@@ -14,7 +14,7 @@ module.exports = function setupWebcam(options, imageHandler) {
       video.srcObject = mediaStream;
       video.onloadedmetadata = function(e) {
         video.play();
- 
+
         resolve(imageHandler(video, options));
       };
  
