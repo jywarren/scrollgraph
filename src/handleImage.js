@@ -34,8 +34,10 @@ module.exports = function handleImage(img, options) {
       // initiate first frame
       compatibility.requestAnimationFrame(draw);
 
-      // pass out our matcher so it can be used to train(), match()
-      resolve(matcher);
+      // pass out our matcher, merged with other useful return values, so it can be used to train(), match()
+      resolve(Object.assign({
+        imageHandler: handleImage
+      }, matcher));
     }
     mask.src = 'images/circle.png';
  
@@ -99,6 +101,7 @@ module.exports = function handleImage(img, options) {
               // 3. more than 1000ms since last keyframe
               // 4. over 100 points available to match from
               results.distFromKeyframe = Math.abs(results.projected_corners[0].x) + Math.abs(results.projected_corners[0].y);
+console.log('dist', results.distFromKeyframe)
               if (
                 results.good_matches > options.goodMatchesMin * options.keyframeThreshold && 
                 results.distFromKeyframe > keyframeDistanceThreshold && 
@@ -149,7 +152,11 @@ module.exports = function handleImage(img, options) {
   });
 
   function drawImage(img, x, y) {
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.save();
     if (options.vignette) {
+      if (options.flipBitX === -1) ctx.translate(options.smallerSrcDimension, 0);
+      if (options.flipBitY === -1) ctx.translate(0, options.smallerSrcDimension);
+      if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
       // apply circular vignette mask
       maskCtx.drawImage(img, maskOffset.x, maskOffset.y,
         options.srcWidth,
@@ -159,9 +166,13 @@ module.exports = function handleImage(img, options) {
         options.srcWidth,
         options.srcHeight);
     } else {
+      if (options.flipBitX === -1) ctx.translate(options.srcWidth, 0);
+      if (options.flipBitY === -1) ctx.translate(0, options.srcHeight);
+      if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
       ctx.drawImage(img, x, y,
         options.srcWidth,
         options.srcHeight);
     }
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.restore();
   }
 }

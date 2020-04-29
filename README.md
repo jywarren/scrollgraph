@@ -52,7 +52,14 @@ A range of tweaks and optimizations have been added to create a more responsive 
 
 ### To do
 
-* [] set default train() to train($('video')[0])
+* [ ] enable flip; we'd have to change:
+  * `train_image`
+  * `handleImage`
+  * `match()`
+  * AHA! seems this causes the 10px offset and gets us in a loop of creating keyframes
+
+* [ ] SOLVE 10px offset!!
+  * 0.1 scaling factor?? Try turning it off
 
 * [ ] figure out canvas scaling to not be a gigantic webpage? div scrolling?
   * google canvas page scale

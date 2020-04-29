@@ -4,8 +4,12 @@ module.exports = function defaults(options) {
   options.keyframeDistanceThreshold = options.keyframeDistanceThreshold || 1/3;
   options.annotations = options.annotations === true || false;
   options.vignette = options.vignette === true || false;
+  options.source = options.source || "webcam";
+  options.videoSelector = options.videoSelector || "#video";
   options.srcWidth = options.srcWidth || 800;
   options.srcHeight = options.srcHeight || 600; 
+  options.flipBitX = options.flipBitX || 1; 
+  options.flipBitY = options.flipBitY || 1; 
   // the center of the canvas, offset by -1/2 the image dimensions
   options.canvasOffset = options.canvasOffset || {
     x: options.width/2 - options.srcWidth/2,

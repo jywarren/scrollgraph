@@ -71,7 +71,12 @@ module.exports = function setupMatcher(options) {
 
   function match(img, offset) {
 
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.save();
+    if (options.flipBitX === -1) ctx.translate(options.srcWidth, 0);
+    if (options.flipBitY === -1) ctx.translate(0, options.srcHeight);
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
     ctx.drawImage(img, 0, 0, options.srcWidth, options.srcHeight); // draw incoming image to canvas
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.restore();
     var imageData = ctx.getImageData(0, 0, options.srcWidth, options.srcHeight); // get it as imageData
  
     // start processing new image

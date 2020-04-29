@@ -1,6 +1,7 @@
 Scrollgraph = function Scrollgraph(options) {
   options = require('./defaults.js')(options);
-  var setupWebcam = require('./setupWebcam.js');
+  options.imageHandler = options.imageHandler || require('./handleImage.js'); // allow overriding
+  var setupVideo = require('./setupVideo.js');
 
   return new Promise(function(resolve, reject) { 
 
@@ -17,7 +18,10 @@ Scrollgraph = function Scrollgraph(options) {
                          .height(options.srcHeight);
     } 
 
-    resolve(setupWebcam(options, require('./handleImage.js')));
+    resolve(setupVideo(options));
+//      resolve(Object.assign({
+//        imageHandler: handleImage
+//      }, matcher));
 
   });
 
