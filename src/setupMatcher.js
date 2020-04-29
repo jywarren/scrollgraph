@@ -53,10 +53,6 @@ module.exports = function setupMatcher(options) {
     options.match_threshold = options.match_threshold || 48;
   }
 
-  function setOption(key, value) {
-    options[key] = value;
-  }
-
   function train(img) {
     let train_pattern = require('./jsfeat/trainPattern.js')(
       img_u8,
@@ -135,8 +131,7 @@ module.exports = function setupMatcher(options) {
 
   return {
     train: train,
-    match: match,
-    setOption: setOption
+    match: match
   }
 
 }

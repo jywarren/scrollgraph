@@ -18,11 +18,24 @@ Scrollgraph = function Scrollgraph(options) {
                          .height(options.srcHeight);
     } 
 
-    resolve(setupVideo(options));
-//      resolve(Object.assign({
-//        imageHandler: handleImage
-//      }, matcher));
+    setupVideo(options).then(function(videoApi) {
+
+      // combine upstream returned objects with main external API
+      resolve(Object.assign({
+        setOption: setOption,
+        getOption: getOption,
+      }, videoApi));
+
+    });
 
   });
+
+  function setOption(key, value) {
+    options[key] = value;
+  }
+
+  function getOption(key) {
+    return options[key];
+  }
 
 }

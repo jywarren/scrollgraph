@@ -968,12 +968,25 @@ Scrollgraph = function Scrollgraph(options) {
                          .height(options.srcHeight);
     } 
 
-    resolve(setupVideo(options));
-//      resolve(Object.assign({
-//        imageHandler: handleImage
-//      }, matcher));
+    setupVideo(options).then(function(videoApi) {
+
+      // combine upstream returned objects with main external API
+      resolve(Object.assign({
+        setOption: setOption,
+        getOption: getOption,
+      }, videoApi));
+
+    });
 
   });
+
+  function setOption(key, value) {
+    options[key] = value;
+  }
+
+  function getOption(key) {
+    return options[key];
+  }
 
 }
 
@@ -1031,10 +1044,6 @@ module.exports = function setupMatcher(options) {
     options.lap_thres = options.lap_thres || 30;
     options.eigen_thres = options.eigen_thres || 25;
     options.match_threshold = options.match_threshold || 48;
-  }
-
-  function setOption(key, value) {
-    options[key] = value;
   }
 
   function train(img) {
@@ -1115,8 +1124,7 @@ module.exports = function setupMatcher(options) {
 
   return {
     train: train,
-    match: match,
-    setOption: setOption
+    match: match
   }
 
 }
@@ -1150,7 +1158,6 @@ function connectWebcam(video, options, resolve) {
     video.srcObject = mediaStream;
     video.onloadedmetadata = function(e) {
       video.play();
-
       resolve(options.imageHandler(video, options));
     };
 

@@ -26,7 +26,6 @@ function connectWebcam(video, options, resolve) {
     video.srcObject = mediaStream;
     video.onloadedmetadata = function(e) {
       video.play();
-
       resolve(options.imageHandler(video, options));
     };
 

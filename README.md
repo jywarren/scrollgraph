@@ -59,7 +59,8 @@ A range of tweaks and optimizations have been added to create a more responsive 
   * AHA! seems this causes the 10px offset and gets us in a loop of creating keyframes
 
 * [ ] SOLVE 10px offset!!
-  * 0.1 scaling factor?? Try turning it off
+  * [ ] 0.1 scaling factor?? YES THIS WAS IT-- solve this!
+  * [ ] ALSO keyframe offset limits maybe aren't working?
 
 * [ ] figure out canvas scaling to not be a gigantic webpage? div scrolling?
   * google canvas page scale
