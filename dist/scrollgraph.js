@@ -400,8 +400,7 @@ module.exports = function handleImage(img, options) {
         originY = (options.height / 2) - (options.srcHeight / 2),
         baseScale = 1
         lastFrame = Date.now(),
-        lastKeyframe = Date.now(),
-        keyframeDistanceThreshold = (options.srcWidth + options.srcHeight) / (1/options.keyframeDistanceThreshold);
+        lastKeyframe = Date.now();
  
     function draw() {
       if (img instanceof Image || img instanceof HTMLVideoElement && img.readyState === img.HAVE_ENOUGH_DATA) {
@@ -453,15 +452,14 @@ module.exports = function handleImage(img, options) {
               // 2. more than options.keyframeDistanceThreshold out from original image position
               // 3. more than 1000ms since last keyframe
               // 4. over 100 points available to match from
-              results.distFromKeyframe = Math.abs(results.projected_corners[0].x) + Math.abs(results.projected_corners[0].y);
-console.log('dist', results.distFromKeyframe)
+              results.distFromKeyframe = parseInt(Math.abs(results.projected_corners[0].x) + Math.abs(results.projected_corners[0].y));
               if (
                 results.good_matches > options.goodMatchesMin * options.keyframeThreshold && 
-                results.distFromKeyframe > keyframeDistanceThreshold && 
-                Date.now() - lastKeyframe > 500,
+                results.distFromKeyframe > options.keyframeDistanceThreshold && 
+                Date.now() - lastKeyframe > 500 &&
                 results.num_corners > 100
               ) {
-                console.log('new keyframe!');
+console.log('New! dist', results.distFromKeyframe, '/', options.keyframeDistanceThreshold, 'time', Date.now() - lastKeyframe)
                 lastKeyframe = Date.now();
                 matcher.train(img);
   
@@ -1180,7 +1178,18 @@ module.exports = function createCanvas(id, options) {
   height = options.height || 1000;
   canvas.width = width;
   canvas.height = height;
-  $(canvas).css('height', $(canvas).width() + 'px');
+  // scale the canvas to fit on the page, but don't sacrifice true pixel resolution
+  var scale;
+  if (window.innerWidth < window.innerHeight) {
+    $(canvas).css('height', $(canvas).width() + 'px');
+    scale = (window.innerWidth / $(canvas).width());
+  } else {
+    $(canvas).css('width', $(canvas).height() + 'px');
+    scale = (window.innerHeight / $(canvas).height());
+  }
+  $(canvas).css('position', 'absolute');
+  $(canvas).css('transform-origin', 'top left');
+  $(canvas).css('transform', 'scale(' + scale + ')');
   ctx.fillStyle = '#000'; // background
   ctx.fillRect(0, 0, options.width, options.height);
   return ctx;

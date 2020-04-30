@@ -57,13 +57,16 @@ A range of tweaks and optimizations have been added to create a more responsive 
   * `handleImage`
   * `match()`
   * AHA! seems this causes the 10px offset and gets us in a loop of creating keyframes
+  * OK< so flipping seems to suffer from offset issues, but possibly we need to add a flipbit other places... 
+
+
+  * [ ] ALSO keyframe offset limits maybe aren't working?
+                true &&// results.distFromKeyframe > keyframeDistanceThreshold && 
+       * this dist was the limiting factor... keyfram filters were off!
 
 * [ ] SOLVE 10px offset!!
   * [ ] 0.1 scaling factor?? YES THIS WAS IT-- solve this!
-  * [ ] ALSO keyframe offset limits maybe aren't working?
-
-* [ ] figure out canvas scaling to not be a gigantic webpage? div scrolling?
-  * google canvas page scale
+    * just forget scaling factor? keyframes seem fine...
 
 * [ ] reject blurry keyframes? Tough: https://stackoverflow.com/q/7765810/1116657, https://stackoverflow.com/q/6646371/1116657
 * [ ] optimizations:
@@ -124,4 +127,6 @@ A range of tweaks and optimizations have been added to create a more responsive 
 * [x] make mask larger
 * [x] use intermediate canvas to perform masking?
 * [x] do NOT mask on the working canvas... just on pasting onto the display canvas
+* [x] figure out canvas scaling to not be a gigantic webpage? div scrolling?
+  * transform: scale(); in CSS
 

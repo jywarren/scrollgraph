@@ -17,6 +17,10 @@
     <div class="toolbar">
       <a class="btn btn-lg btn-secondary" onClick="scrollgraph.setOption('annotations', !scrollgraph.getOption('annotations'));">Annotations</a>
       <a class="btn btn-lg btn-secondary" onClick="scrollgraph.train($('video')[0])">Retrain</a>
+<!--
+      <a class="btn btn-lg btn-secondary" onClick="scrollgraph.setOption('flipBitX', -1*scrollgraph.getOption('flipBitX'));">Flip X</a>
+      <a class="btn btn-lg btn-secondary" onClick="scrollgraph.setOption('flipBitY', -1*scrollgraph.getOption('flipBitY'));">Flip Y</a>
+-->
     </div>
 
     <script type="text/javascript" src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
@@ -34,12 +38,12 @@
         vignette: true,
         goodMatchesMin: 10, // default 8; frames must have this many good matches to be displayed
         keyframeThreshold: 1.2, // default 2; keyframes must have 2x number of good matches
-        keyframeDistanceThreshold: 1/9, // default 1/3; keyframes must be this far off of last keyframe origin
+        keyframeDistanceThreshold: 30, // default 50; keyframes must be this far off of last keyframe origin
         num_train_levels: 1, // default 4; keypoint finder at different zoom levels; not needed if no resizing happens (as in microscopy)
         //trainingMargin: 0.1, // the width of the margin we discard when training a pattern, to improve matching; as a proportion from 0 to 1
         trainingMargin: 0, // the width of the margin we discard when training a pattern, to improve matching; as a proportion from 0 to 1
-        width: 1600,
-        height: 1600,
+        width: 2000,
+        height: 2000,
         srcWidth: 640,
         srcHeight: 480
       }).then(function(api) {
@@ -52,10 +56,10 @@
 
     <style>
       body {
-        background: black;
+        background: #222;
       }
       .toolbar {
-        position:absolute;
+        position: fixed;
         bottom: 0;
         width: 100%;
         height: 50px;
