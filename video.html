@@ -1,0 +1,78 @@
+<!doctype html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>Scrollgraph</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="node_modules/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="node_modules/font-awesome/css/font-awesome.min.css" rel="stylesheet">
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <video id="video" loop="true" src="images/sample-lawn.mp4" style="position:absolute;right:0;top:0;" onClick="$(this).hide();"></video>
+    <canvas id="workingCanvas" width="640" height="480" style="display:none;"></canvas>
+
+    <div class="toolbar">
+      <a class="btn btn-lg btn-secondary" onClick="scrollgraph.setOption('annotations', !scrollgraph.getOption('annotations'));">Annotations</a>
+      <a class="btn btn-lg btn-secondary" onClick="scrollgraph.train($('video')[0])">Retrain</a>
+      <a class="btn btn-lg btn-secondary" onClick="$('video')[0].play()">Play</a>
+<!--
+      <a class="btn btn-lg btn-secondary" onClick="scrollgraph.setOption('flipBitX', -1*scrollgraph.getOption('flipBitX'));">Flip X</a>
+      <a class="btn btn-lg btn-secondary" onClick="scrollgraph.setOption('flipBitY', -1*scrollgraph.getOption('flipBitY'));">Flip Y</a>
+-->
+    </div>
+
+    <script type="text/javascript" src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
+    <script src="node_modules/bootstrap/dist/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="node_modules/jsfeat/build/jsfeat-min.js"></script>
+    <script type="text/javascript" src="lib/compatibility.js"></script>
+    <script src="dist/scrollgraph.js"></script>
+    <script type="text/javascript">
+
+    var scrollgraph;
+    $(window).load(function() {
+      Scrollgraph({
+        debug: true,
+        source: "video",
+        annotations: false,
+        vignette: false,
+        goodMatchesMin: 11, // default 8; frames must have this many good matches to be displayed
+        keyframeThreshold: 1.1, // default 2; keyframes must have 2x number of good matches
+        keyframeDistanceThreshold: 90, // default 50; keyframes must be this far off of last keyframe origin
+        num_train_levels: 1, // default 4; keypoint finder at different zoom levels; not needed if no resizing happens (as in microscopy)
+        trainingMargin: 0, // the width of the margin we discard when training a pattern, to improve matching; as a proportion from 0 to 1
+        width: 1200,
+        height: 1200,
+        srcWidth: 640,
+        srcHeight: 360
+      }).then(function(api) {
+        console.log(api);
+        scrollgraph = api; // assign to global so we can play with it
+      });
+
+    });
+    </script>
+
+    <style>
+      body {
+        background: #222;
+      }
+      .toolbar {
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        height: 50px;
+      }
+      .flipY {
+        -webkit-transform: scaleY(-1);
+        transform: scaleY(-1);
+      }
+      .flipX {
+        -webkit-transform: scaleX(-1);
+        transform: scaleX(-1);
+      }
+    </style>
+  </body>
+</html>

@@ -1,6 +1,7 @@
 Scrollgraph = function Scrollgraph(options) {
   options = require('./defaults.js')(options);
-  var setupWebcam = require('./setupWebcam.js');
+  options.imageHandler = options.imageHandler || require('./handleImage.js'); // allow overriding
+  var setupVideo = require('./setupVideo.js');
 
   return new Promise(function(resolve, reject) { 
 
@@ -17,8 +18,24 @@ Scrollgraph = function Scrollgraph(options) {
                          .height(options.srcHeight);
     } 
 
-    resolve(setupWebcam(options, require('./handleImage.js')));
+    setupVideo(options).then(function(videoApi) {
+
+      // combine upstream returned objects with main external API
+      resolve(Object.assign({
+        setOption: setOption,
+        getOption: getOption,
+      }, videoApi));
+
+    });
 
   });
+
+  function setOption(key, value) {
+    options[key] = value;
+  }
+
+  function getOption(key) {
+    return options[key];
+  }
 
 }

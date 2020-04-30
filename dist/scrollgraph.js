@@ -334,8 +334,12 @@ module.exports = function defaults(options) {
   options.keyframeDistanceThreshold = options.keyframeDistanceThreshold || 1/3;
   options.annotations = options.annotations === true || false;
   options.vignette = options.vignette === true || false;
+  options.source = options.source || "webcam";
+  options.videoSelector = options.videoSelector || "#video";
   options.srcWidth = options.srcWidth || 800;
   options.srcHeight = options.srcHeight || 600; 
+  options.flipBitX = options.flipBitX || 1; 
+  options.flipBitY = options.flipBitY || 1; 
   // the center of the canvas, offset by -1/2 the image dimensions
   options.canvasOffset = options.canvasOffset || {
     x: options.width/2 - options.srcWidth/2,
@@ -383,8 +387,10 @@ module.exports = function handleImage(img, options) {
       // initiate first frame
       compatibility.requestAnimationFrame(draw);
 
-      // pass out our matcher so it can be used to train(), match()
-      resolve(matcher);
+      // pass out our matcher, merged with other useful return values, so it can be used to train(), match()
+      resolve(Object.assign({
+        imageHandler: handleImage
+      }, matcher));
     }
     mask.src = 'images/circle.png';
  
@@ -394,8 +400,7 @@ module.exports = function handleImage(img, options) {
         originY = (options.height / 2) - (options.srcHeight / 2),
         baseScale = 1
         lastFrame = Date.now(),
-        lastKeyframe = Date.now(),
-        keyframeDistanceThreshold = (options.srcWidth + options.srcHeight) / (1/options.keyframeDistanceThreshold);
+        lastKeyframe = Date.now();
  
     function draw() {
       if (img instanceof Image || img instanceof HTMLVideoElement && img.readyState === img.HAVE_ENOUGH_DATA) {
@@ -447,14 +452,14 @@ module.exports = function handleImage(img, options) {
               // 2. more than options.keyframeDistanceThreshold out from original image position
               // 3. more than 1000ms since last keyframe
               // 4. over 100 points available to match from
-              results.distFromKeyframe = Math.abs(results.projected_corners[0].x) + Math.abs(results.projected_corners[0].y);
+              results.distFromKeyframe = parseInt(Math.abs(results.projected_corners[0].x) + Math.abs(results.projected_corners[0].y));
               if (
                 results.good_matches > options.goodMatchesMin * options.keyframeThreshold && 
-                results.distFromKeyframe > keyframeDistanceThreshold && 
-                Date.now() - lastKeyframe > 500,
+                results.distFromKeyframe > options.keyframeDistanceThreshold && 
+                Date.now() - lastKeyframe > 500 &&
                 results.num_corners > 100
               ) {
-                console.log('new keyframe!');
+console.log('New! dist', results.distFromKeyframe, '/', options.keyframeDistanceThreshold, 'time', Date.now() - lastKeyframe)
                 lastKeyframe = Date.now();
                 matcher.train(img);
   
@@ -498,7 +503,11 @@ module.exports = function handleImage(img, options) {
   });
 
   function drawImage(img, x, y) {
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.save();
     if (options.vignette) {
+      if (options.flipBitX === -1) ctx.translate(options.smallerSrcDimension, 0);
+      if (options.flipBitY === -1) ctx.translate(0, options.smallerSrcDimension);
+      if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
       // apply circular vignette mask
       maskCtx.drawImage(img, maskOffset.x, maskOffset.y,
         options.srcWidth,
@@ -508,10 +517,14 @@ module.exports = function handleImage(img, options) {
         options.srcWidth,
         options.srcHeight);
     } else {
+      if (options.flipBitX === -1) ctx.translate(options.srcWidth, 0);
+      if (options.flipBitY === -1) ctx.translate(0, options.srcHeight);
+      if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
       ctx.drawImage(img, x, y,
         options.srcWidth,
         options.srcHeight);
     }
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.restore();
   }
 }
 
@@ -836,9 +849,18 @@ module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_pre
     var xOffset = options.trainingMargin * options.srcWidth;
     var yOffset = options.trainingMargin * options.srcHeight;
 
-    // draw the image too big, letting margins hang off edges
-    ctx.drawImage(newImg, 0, 0, options.srcWidth, options.srcHeight,
-                          -xOffset, -yOffset, options.srcWidth + xOffset, options.srcHeight + yOffset); // draw incoming image to canvas
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.save();
+    if (options.flipBitX === -1) ctx.translate(options.srcWidth, 0);
+    if (options.flipBitY === -1) ctx.translate(0, options.srcHeight);
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
+      // draw the image too big, letting margins hang off edges
+      ctx.drawImage(newImg,
+        0, 0,
+        options.srcWidth, options.srcHeight,
+        -xOffset, -yOffset,
+        options.srcWidth + xOffset, options.srcHeight + yOffset); // draw incoming image to canvas
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.restore();
+
     var imageData = ctx.getImageData(0, 0, options.srcWidth, options.srcHeight); // get it as imageData
 
     // start processing new image
@@ -926,7 +948,8 @@ module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_pre
 },{"./detectKeypoints.js":6}],17:[function(require,module,exports){
 Scrollgraph = function Scrollgraph(options) {
   options = require('./defaults.js')(options);
-  var setupWebcam = require('./setupWebcam.js');
+  options.imageHandler = options.imageHandler || require('./handleImage.js'); // allow overriding
+  var setupVideo = require('./setupVideo.js');
 
   return new Promise(function(resolve, reject) { 
 
@@ -943,13 +966,29 @@ Scrollgraph = function Scrollgraph(options) {
                          .height(options.srcHeight);
     } 
 
-    resolve(setupWebcam(options, require('./handleImage.js')));
+    setupVideo(options).then(function(videoApi) {
+
+      // combine upstream returned objects with main external API
+      resolve(Object.assign({
+        setOption: setOption,
+        getOption: getOption,
+      }, videoApi));
+
+    });
 
   });
 
+  function setOption(key, value) {
+    options[key] = value;
+  }
+
+  function getOption(key) {
+    return options[key];
+  }
+
 }
 
-},{"./defaults.js":3,"./handleImage.js":4,"./setupWebcam.js":19,"o9n":1}],18:[function(require,module,exports){
+},{"./defaults.js":3,"./handleImage.js":4,"./setupVideo.js":19,"o9n":1}],18:[function(require,module,exports){
 "use strict";
 module.exports = function setupMatcher(options) {
 
@@ -1005,10 +1044,6 @@ module.exports = function setupMatcher(options) {
     options.match_threshold = options.match_threshold || 48;
   }
 
-  function setOption(key, value) {
-    options[key] = value;
-  }
-
   function train(img) {
     let train_pattern = require('./jsfeat/trainPattern.js')(
       img_u8,
@@ -1023,7 +1058,12 @@ module.exports = function setupMatcher(options) {
 
   function match(img, offset) {
 
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.save();
+    if (options.flipBitX === -1) ctx.translate(options.srcWidth, 0);
+    if (options.flipBitY === -1) ctx.translate(0, options.srcHeight);
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
     ctx.drawImage(img, 0, 0, options.srcWidth, options.srcHeight); // draw incoming image to canvas
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.restore();
     var imageData = ctx.getImageData(0, 0, options.srcWidth, options.srcHeight); // get it as imageData
  
     // start processing new image
@@ -1082,41 +1122,50 @@ module.exports = function setupMatcher(options) {
 
   return {
     train: train,
-    match: match,
-    setOption: setOption
+    match: match
   }
 
 }
 
 },{"./jsfeat/annotateImage.js":5,"./jsfeat/detectKeypoints.js":6,"./jsfeat/findTransform.js":7,"./jsfeat/icAngle.js":8,"./jsfeat/matchPattern.js":9,"./jsfeat/matchStructure.js":10,"./jsfeat/tCorners.js":15,"./jsfeat/trainPattern.js":16,"./util/createCanvas.js":20}],19:[function(require,module,exports){
-module.exports = function setupWebcam(options, imageHandler) {
+module.exports = function setupWebcam(options) {
   options.camera = options.camera || { audio: false, video: { 
     width: options.srcWidth,
     height: options.srcHeight, 
     facingMode: "environment"
   } }; 
   return new Promise(async function(resolve, reject) { 
-    var video = document.querySelector('video');
+    var video = document.querySelector(options.videoSelector);
     $(video).width(options.srcWidth)
             .height(options.srcHeight);
- 
-    navigator.mediaDevices.getUserMedia(options.camera)
-    .then(function(mediaStream) {
-      video.srcObject = mediaStream;
-      video.onloadedmetadata = function(e) {
-        video.play();
 
-        resolve(imageHandler(video, options));
-      };
- 
-      // turn off camera when done
-      $(window).unload(function() {
-        video.pause();
-        video.src = null;
-      });
-    })
-    .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
+    if (options.source === "webcam") connectWebcam(video, options, resolve);
+    else if (options.source === "video") connectVideo(video, options, resolve);
+
   });
+}
+
+function connectVideo(video, options, resolve) {
+  video.play();
+  resolve(options.imageHandler(video, options));
+}
+
+function connectWebcam(video, options, resolve) {
+  navigator.mediaDevices.getUserMedia(options.camera)
+  .then(function(mediaStream) {
+    video.srcObject = mediaStream;
+    video.onloadedmetadata = function(e) {
+      video.play();
+      resolve(options.imageHandler(video, options));
+    };
+
+    // turn off camera when done
+    $(window).unload(function() {
+      video.pause();
+      video.src = null;
+    });
+  })
+  .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
 }
 
 },{}],20:[function(require,module,exports){
@@ -1129,7 +1178,18 @@ module.exports = function createCanvas(id, options) {
   height = options.height || 1000;
   canvas.width = width;
   canvas.height = height;
-  $(canvas).css('height', $(canvas).width() + 'px');
+  // scale the canvas to fit on the page, but don't sacrifice true pixel resolution
+  var scale;
+  if (window.innerWidth < window.innerHeight) {
+    $(canvas).css('height', $(canvas).width() + 'px');
+    scale = (window.innerWidth / $(canvas).width());
+  } else {
+    $(canvas).css('width', $(canvas).height() + 'px');
+    scale = (window.innerHeight / $(canvas).height());
+  }
+  $(canvas).css('position', 'absolute');
+  $(canvas).css('transform-origin', 'top left');
+  $(canvas).css('transform', 'scale(' + scale + ')');
   ctx.fillStyle = '#000'; // background
   ctx.fillRect(0, 0, options.width, options.height);
   return ctx;

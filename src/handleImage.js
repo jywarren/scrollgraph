@@ -34,8 +34,10 @@ module.exports = function handleImage(img, options) {
       // initiate first frame
       compatibility.requestAnimationFrame(draw);
 
-      // pass out our matcher so it can be used to train(), match()
-      resolve(matcher);
+      // pass out our matcher, merged with other useful return values, so it can be used to train(), match()
+      resolve(Object.assign({
+        imageHandler: handleImage
+      }, matcher));
     }
     mask.src = 'images/circle.png';
  
@@ -45,8 +47,7 @@ module.exports = function handleImage(img, options) {
         originY = (options.height / 2) - (options.srcHeight / 2),
         baseScale = 1
         lastFrame = Date.now(),
-        lastKeyframe = Date.now(),
-        keyframeDistanceThreshold = (options.srcWidth + options.srcHeight) / (1/options.keyframeDistanceThreshold);
+        lastKeyframe = Date.now();
  
     function draw() {
       if (img instanceof Image || img instanceof HTMLVideoElement && img.readyState === img.HAVE_ENOUGH_DATA) {
@@ -98,14 +99,14 @@ module.exports = function handleImage(img, options) {
               // 2. more than options.keyframeDistanceThreshold out from original image position
               // 3. more than 1000ms since last keyframe
               // 4. over 100 points available to match from
-              results.distFromKeyframe = Math.abs(results.projected_corners[0].x) + Math.abs(results.projected_corners[0].y);
+              results.distFromKeyframe = parseInt(Math.abs(results.projected_corners[0].x) + Math.abs(results.projected_corners[0].y));
               if (
                 results.good_matches > options.goodMatchesMin * options.keyframeThreshold && 
-                results.distFromKeyframe > keyframeDistanceThreshold && 
-                Date.now() - lastKeyframe > 500,
+                results.distFromKeyframe > options.keyframeDistanceThreshold && 
+                Date.now() - lastKeyframe > 500 &&
                 results.num_corners > 100
               ) {
-                console.log('new keyframe!');
+console.log('New! dist', results.distFromKeyframe, '/', options.keyframeDistanceThreshold, 'time', Date.now() - lastKeyframe)
                 lastKeyframe = Date.now();
                 matcher.train(img);
   
@@ -149,7 +150,11 @@ module.exports = function handleImage(img, options) {
   });
 
   function drawImage(img, x, y) {
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.save();
     if (options.vignette) {
+      if (options.flipBitX === -1) ctx.translate(options.smallerSrcDimension, 0);
+      if (options.flipBitY === -1) ctx.translate(0, options.smallerSrcDimension);
+      if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
       // apply circular vignette mask
       maskCtx.drawImage(img, maskOffset.x, maskOffset.y,
         options.srcWidth,
@@ -159,9 +164,13 @@ module.exports = function handleImage(img, options) {
         options.srcWidth,
         options.srcHeight);
     } else {
+      if (options.flipBitX === -1) ctx.translate(options.srcWidth, 0);
+      if (options.flipBitY === -1) ctx.translate(0, options.srcHeight);
+      if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
       ctx.drawImage(img, x, y,
         options.srcWidth,
         options.srcHeight);
     }
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.restore();
   }
 }

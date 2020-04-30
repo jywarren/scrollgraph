@@ -25,9 +25,18 @@ module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_pre
     var xOffset = options.trainingMargin * options.srcWidth;
     var yOffset = options.trainingMargin * options.srcHeight;
 
-    // draw the image too big, letting margins hang off edges
-    ctx.drawImage(newImg, 0, 0, options.srcWidth, options.srcHeight,
-                          -xOffset, -yOffset, options.srcWidth + xOffset, options.srcHeight + yOffset); // draw incoming image to canvas
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.save();
+    if (options.flipBitX === -1) ctx.translate(options.srcWidth, 0);
+    if (options.flipBitY === -1) ctx.translate(0, options.srcHeight);
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
+      // draw the image too big, letting margins hang off edges
+      ctx.drawImage(newImg,
+        0, 0,
+        options.srcWidth, options.srcHeight,
+        -xOffset, -yOffset,
+        options.srcWidth + xOffset, options.srcHeight + yOffset); // draw incoming image to canvas
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.restore();
+
     var imageData = ctx.getImageData(0, 0, options.srcWidth, options.srcHeight); // get it as imageData
 
     // start processing new image
