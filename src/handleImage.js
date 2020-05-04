@@ -24,6 +24,8 @@ module.exports = function handleImage(img, options) {
         maskCanvas.style = 'display:none;';
         document.body.appendChild(maskCanvas);
         maskCtx = createCanvas('maskCanvas', { width: options.srcWidth, height: options.srcHeight });
+        maskCtx.fillStyle = "black";
+        maskCtx.fillRect(0, 0, options.srcWidth, options.srcHeight);
         maskCtx.globalCompositeOperation = 'destination-in';
         maskCtx.drawImage(mask, 0, 0, options.smallerSrcDimension, options.smallerSrcDimension);
         maskCtx.globalCompositeOperation = 'source-in';
@@ -59,8 +61,12 @@ module.exports = function handleImage(img, options) {
         } else {
  
           var results = matcher.match(img);
+
+          // filterFrame()
           // be 1.25x more lax if it's been a while since the last match:
-          if ((results.good_matches > options.goodMatchesMin || Date.now() - lastFrame > 500 && results.good_matches * 1.25 > options.goodMatchesMin) 
+          if ((results.good_matches > options.goodMatchesMin ||
+               Date.now() - lastFrame > 500 && 
+               results.good_matches * 1.25 > options.goodMatchesMin) 
              && results.projected_corners) {
  
             lastFrame = Date.now();
@@ -89,11 +95,15 @@ module.exports = function handleImage(img, options) {
               ctx.translate(- (options.srcWidth / 2), 
                             - (options.srcHeight / 2));
 
+              // place non-keyframes behind canvas
+              ctx.globalCompositeOperation = 'destination-over';
               drawImage(img, 0, 0);
+              ctx.globalCompositeOperation = 'source-over';
  
               if (options.annotations) results.annotate(ctx, {x: imgPosX, y: imgPosY}); // draw match points
               ctx.restore();
-  
+
+              // filterKeyframe()  
               // new keyframe if:
               // 1. <keyframeThreshold> more good matches
               // 2. more than options.keyframeDistanceThreshold out from original image position
@@ -125,6 +135,8 @@ console.log('New! dist', results.distFromKeyframe, '/', options.keyframeDistance
                     options.srcWidth,
                     options.srcHeight);
                 }
+                // draw again on top since it's a keyframe
+                drawImage(img, imgPosX, imgPosY); // consider doing this only if it's non-blurry or something
   
                 // adjust ctx transform matrix and origin point to new keyframe
                 if (options.scaling) baseScale = scale; // save base scale

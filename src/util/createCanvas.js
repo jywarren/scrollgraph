@@ -19,7 +19,5 @@ module.exports = function createCanvas(id, options) {
   $(canvas).css('position', 'absolute');
   $(canvas).css('transform-origin', 'top left');
   $(canvas).css('transform', 'scale(' + scale + ')');
-  ctx.fillStyle = '#000'; // background
-  ctx.fillRect(0, 0, options.width, options.height);
   return ctx;
 }

@@ -52,32 +52,38 @@ A range of tweaks and optimizations have been added to create a more responsive 
 
 ### To do
 
-* [ ] enable flip; we'd have to change:
+* [ ] optimizations:
+  * [ ] dist is often the limiting factor... but we often get off-track. Could we have a "fallback" that's more lax?
+  * [x] keyframes must not happen too often - balance with responsiveness...? use time/distance threshold?
+  * [ ] cap points from each image
+  * [ ] can we use only lower res keyframes? 1/2 resolution? options.keyframeScale !
+* [ ] we could say, if it's been 2 seconds since last keyframe, try a lower threshold?
+* [ ] there's a balance between "good keyframes" and "fast responsiveness"
+  * [ ] try putting non-keyframes behind in blend modes
+
+* [x] if no matches for X seconds, try other past keyframes?
+  * we relax thresholds for both frames and keyframes if no recent matches have been made (500ms)
+
+* [ ] SOLVE 10px offset!!
+  * [x] 0.1 scaling factor?? YES THIS WAS IT-- solve this!
+    * just forget scaling factor? keyframes seem fine...
+    * would using the scaling factor improve our keyframe matching when we get off track?
+
+* [ ] still getting some kind of offset maybe...
+
+* [ ] add tracking circles and markers
+* [ ] pull out filterFrame and filterKeyframe ? 
+
+
+* [ ] enable flipping; we'd have to change (setting this aside until optimizations):
   * `train_image`
   * `handleImage`
   * `match()`
   * AHA! seems this causes the 10px offset and gets us in a loop of creating keyframes
   * OK< so flipping seems to suffer from offset issues, but possibly we need to add a flipbit other places... 
 
-
-  * [ ] ALSO keyframe offset limits maybe aren't working?
-                true &&// results.distFromKeyframe > keyframeDistanceThreshold && 
-       * this dist was the limiting factor... keyfram filters were off!
-
-* [ ] SOLVE 10px offset!!
-  * [ ] 0.1 scaling factor?? YES THIS WAS IT-- solve this!
-    * just forget scaling factor? keyframes seem fine...
-
 * [ ] reject blurry keyframes? Tough: https://stackoverflow.com/q/7765810/1116657, https://stackoverflow.com/q/6646371/1116657
-* [ ] optimizations:
-  * [x] keyframes must not happen too often - balance with responsiveness...? use time/distance threshold?
-  * [ ] cap points from each image
-  * [ ] can we use only lower res keyframes? 1/2 resolution? options.keyframeScale !
-* [ ] we could say, if it's been 2 seconds since last keyframe, try a lower threshold?
-
-* [x] if no matches for X seconds, try other past keyframes?
-  * we relax thresholds for both frames and keyframes if no recent matches have been made (500ms)
-
+  * [ ] can we assess if it's MOSTLY blurry? run analytics on keyframes like `inspectKeyframe()`?
 
 ## Stuck
 
@@ -90,6 +96,7 @@ A range of tweaks and optimizations have been added to create a more responsive 
 ## Longer term
 
 * [ ] try placing perspectivally, using WebGL/glfx.js: https://github.com/jywarren/webgl-distort/blob/main/dist/webgl-distort.js
+  * [ ] `render_pattern_shape` in `handleImage`
 * [ ] bump some work to another thread? Web Workers?
 * [ ] focus knockout - higher sharpness images overwrite lower sharpness images
 * [ ] refactor `jsfeat`-based resize/resample to use canvas?
@@ -129,4 +136,5 @@ A range of tweaks and optimizations have been added to create a more responsive 
 * [x] do NOT mask on the working canvas... just on pasting onto the display canvas
 * [x] figure out canvas scaling to not be a gigantic webpage? div scrolling?
   * transform: scale(); in CSS
+* [x] keyframe offset limits maybe aren't working?
 
