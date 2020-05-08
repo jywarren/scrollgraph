@@ -52,16 +52,22 @@ A range of tweaks and optimizations have been added to create a more responsive 
 
 ### To do
 
+* [x] OFFSET FOUND!!! (0 || 0.1) evaluates to 0.1, so we had never ditched the 0.1 margin and were offsetting..
+* [ ] fix this....
+  * [ ] try removing keypoint scaling/margin code?? no, it seems critical to getting enough matches
+  * 0.1 stays stationary but 0.2 does not...??? 
+  * 0 works but not as well as 0.1?
+
+* also our tracking circle is offset to the right
+
+// notice: training does more: resamples, blurs... is it all necessary?
+
 * [x] add tracking circles
 * [x] add "last keyframe" in grey?
 * [ ] and markers/labels
 * [ ] break out labeling code?
 
-* [ ] try removing keypoint scaling/margin code
-
 * [ ] refactor local variables to be part of response
-
-* [ ] hand off keyframe gen to 2nd thread?
 
 
 * [ ] optimizations:

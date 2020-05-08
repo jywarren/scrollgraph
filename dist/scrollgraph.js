@@ -332,6 +332,7 @@ module.exports = function defaults(options) {
   options.goodMatchesMin = options.goodMatchesMin || 8;
   options.keyframeThreshold = options.keyframeThreshold || 2;
   options.keyframeDistanceThreshold = options.keyframeDistanceThreshold || 1/3;
+  if (typeof options.trainingMargin !== "number") options.trainingMargin = 0.1;
   options.annotations = options.annotations === true || false;
   options.vignette = options.vignette === true || false;
   options.source = options.source || "webcam";
@@ -855,7 +856,6 @@ module.exports = function tCorners(M, w, h) {
 }
 
 },{}],19:[function(require,module,exports){
-// refactor this to accept an image/video?
 module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_preview, pattern_descriptors, pattern_corners, ctx, options) {
   // exposed closure
   return function train_pattern(newImg) {
@@ -878,7 +878,6 @@ module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_pre
 
     // trainingMargin is the width of the margin we discard when training a pattern; this improves matching for some reason.
     // It is a proportion (from 0 to 1) of the image dimensions. 
-    options.trainingMargin = options.trainingMargin || 0.1;
     var xOffset = options.trainingMargin * options.srcWidth;
     var yOffset = options.trainingMargin * options.srcHeight;
 
@@ -891,7 +890,8 @@ module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_pre
         0, 0,
         options.srcWidth, options.srcHeight,
         -xOffset, -yOffset,
-        options.srcWidth + xOffset, options.srcHeight + yOffset); // draw incoming image to canvas
+        options.srcWidth + (xOffset),
+        options.srcHeight + (yOffset)); // draw incoming image to canvas
     if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.restore();
 
     var imageData = ctx.getImageData(0, 0, options.srcWidth, options.srcHeight); // get it as imageData
