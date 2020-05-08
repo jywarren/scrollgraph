@@ -52,14 +52,27 @@ A range of tweaks and optimizations have been added to create a more responsive 
 
 ### To do
 
+* [x] add tracking circles
+* [x] add "last keyframe" in grey?
+* [ ] and markers/labels
+* [ ] break out labeling code?
+
+* [ ] try removing keypoint scaling/margin code
+
+* [ ] refactor local variables to be part of response
+
+* [ ] hand off keyframe gen to 2nd thread?
+
+
 * [ ] optimizations:
   * [ ] dist is often the limiting factor... but we often get off-track. Could we have a "fallback" that's more lax?
   * [x] keyframes must not happen too often - balance with responsiveness...? use time/distance threshold?
   * [ ] cap points from each image
   * [ ] can we use only lower res keyframes? 1/2 resolution? options.keyframeScale !
 * [ ] we could say, if it's been 2 seconds since last keyframe, try a lower threshold?
+
 * [ ] there's a balance between "good keyframes" and "fast responsiveness"
-  * [ ] try putting non-keyframes behind in blend modes
+  * [x] try putting non-keyframes behind in blend modes
 
 * [x] if no matches for X seconds, try other past keyframes?
   * we relax thresholds for both frames and keyframes if no recent matches have been made (500ms)
@@ -70,9 +83,6 @@ A range of tweaks and optimizations have been added to create a more responsive 
     * would using the scaling factor improve our keyframe matching when we get off track?
 
 * [ ] still getting some kind of offset maybe...
-
-* [ ] add tracking circles and markers
-* [ ] pull out filterFrame and filterKeyframe ? 
 
 
 * [ ] enable flipping; we'd have to change (setting this aside until optimizations):
@@ -137,4 +147,4 @@ A range of tweaks and optimizations have been added to create a more responsive 
 * [x] figure out canvas scaling to not be a gigantic webpage? div scrolling?
   * transform: scale(); in CSS
 * [x] keyframe offset limits maybe aren't working?
-
+* [x] pull out filterFrame and filterKeyframe ? 

@@ -1,36 +1,22 @@
 // maps incoming image to the canvas for scrollgraph program
 module.exports = function handleImage(img, options) {
-  var matcher;
   let createCanvas = require('./util/createCanvas.js'),
+      setupMask = require('./setupMask.js'),
+      drawImageWithMask = require('./drawImageWithMask.js'),
+      filterFrame = require('./filterFrame.js'),
+      filterKeyframe = require('./filterKeyframe.js'),
       util = require('./util/util.js')(options);
-  var ctx = createCanvas('canvas', options);
+  var ctx = createCanvas('canvas', options),
+      labelsCtx = createCanvas('labelsCanvas', options),
+      matcher,
+      mask,
+      maskImg = new Image();
 
-  var maskCtx,
-      maskCanvas,
-      mask = new Image(),
-      maskOffset = { x: 0, y: 0 };
-
-  if (options.srcWidth > options.srcHeight) {
-    maskOffset.x = -(options.srcWidth - options.srcHeight) / 2;
-  } else {
-    maskOffset.y = -(options.srcHeight - options.srcWidth) / 2;
-  }
+  labelsCtx.lineWidth = 4;
 
   return new Promise(function(resolve, reject) { 
-    mask.onload = function maskLoaded() {
-      if (options.vignette) {
-        maskCanvas = document.createElement('CANVAS');
-        maskCanvas.id = 'maskCanvas';
-        maskCanvas.style = 'display:none;';
-        document.body.appendChild(maskCanvas);
-        maskCtx = createCanvas('maskCanvas', { width: options.srcWidth, height: options.srcHeight });
-        maskCtx.fillStyle = "black";
-        maskCtx.fillRect(0, 0, options.srcWidth, options.srcHeight);
-        maskCtx.globalCompositeOperation = 'destination-in';
-        maskCtx.drawImage(mask, 0, 0, options.smallerSrcDimension, options.smallerSrcDimension);
-        maskCtx.globalCompositeOperation = 'source-in';
-      }
-     
+    maskImg.onload = function maskLoaded() {
+      if (options.vignette) mask = setupMask(options, maskImg); 
       matcher = require('./setupMatcher.js')(options); // initialize matcher
      
       // initiate first frame
@@ -41,42 +27,40 @@ module.exports = function handleImage(img, options) {
         imageHandler: handleImage
       }, matcher));
     }
-    mask.src = 'images/circle.png';
+    maskImg.src = 'images/circle.png';
  
     // start by matching against first
     var isFirst = true,
         originX = (options.width / 2) - (options.srcWidth / 2),
         originY = (options.height / 2) - (options.srcHeight / 2),
-        baseScale = 1
+        baseScale = 1,
         lastFrame = Date.now(),
-        lastKeyframe = Date.now();
+        lastKeyframeTime = Date.now(),
+        lastKeyframe;
  
     function draw() {
       if (img instanceof Image || img instanceof HTMLVideoElement && img.readyState === img.HAVE_ENOUGH_DATA) {
  
         if (isFirst) {
           matcher.train(img);
-          drawImage(img, originX, originY);
+          drawImageWithMask(img, originX, originY, ctx, mask, options);
           isFirst = false;
         } else {
  
           var results = matcher.match(img);
 
-          // filterFrame()
-          // be 1.25x more lax if it's been a while since the last match:
-          if ((results.good_matches > options.goodMatchesMin ||
-               Date.now() - lastFrame > 500 && 
-               results.good_matches * 1.25 > options.goodMatchesMin) 
-             && results.projected_corners) {
- 
-            lastFrame = Date.now();
-            var avgOffset = util.averageOffsets(results.projected_corners),
-                imgPosX = originX - avgOffset.x + (options.srcWidth / 2),
-                imgPosY = originY - avgOffset.y + (options.srcHeight / 2);
- 
-            var angleRadians = Math.atan2(results.projected_corners[1].y - results.projected_corners[0].y,
+// add all these properties into the results object?
+          var avgOffset = util.averageOffsets(results.projected_corners),
+              imgPosX = originX - avgOffset.x + (options.srcWidth / 2),
+              imgPosY = originY - avgOffset.y + (options.srcHeight / 2);
+
+          var angleRadians = Math.atan2(results.projected_corners[1].y - results.projected_corners[0].y,
                                           results.projected_corners[1].x - results.projected_corners[0].x);
- 
+
+          if (filterFrame(results, options, lastFrame)) { 
+            lastFrame = Date.now();
+
+// move these into the filter? 
             // don't allow jumps of
             // 1. > 1.5x the image width/height
             // 2. > 0.25 radians (~15deg)
@@ -97,28 +81,18 @@ module.exports = function handleImage(img, options) {
 
               // place non-keyframes behind canvas
               ctx.globalCompositeOperation = 'destination-over';
-              drawImage(img, 0, 0);
+              drawImageWithMask(img, 0, 0, ctx, mask, options);
               ctx.globalCompositeOperation = 'source-over';
  
               if (options.annotations) results.annotate(ctx, {x: imgPosX, y: imgPosY}); // draw match points
               ctx.restore();
 
-              // filterKeyframe()  
-              // new keyframe if:
-              // 1. <keyframeThreshold> more good matches
-              // 2. more than options.keyframeDistanceThreshold out from original image position
-              // 3. more than 1000ms since last keyframe
-              // 4. over 100 points available to match from
-              results.distFromKeyframe = parseInt(Math.abs(results.projected_corners[0].x) + Math.abs(results.projected_corners[0].y));
-              if (
-                results.good_matches > options.goodMatchesMin * options.keyframeThreshold && 
-                results.distFromKeyframe > options.keyframeDistanceThreshold && 
-                Date.now() - lastKeyframe > 500 &&
-                results.num_corners > 100
-              ) {
-console.log('New! dist', results.distFromKeyframe, '/', options.keyframeDistanceThreshold, 'time', Date.now() - lastKeyframe)
-                lastKeyframe = Date.now();
+              if (filterKeyframe(results, options, lastKeyframeTime)) {
+console.log('New! dist', results.distFromKeyframe, '/', options.keyframeDistanceThreshold, 'time', Date.now() - lastKeyframeTime)
+                lastKeyframeTime = Date.now();
                 matcher.train(img);
+
+                // draw keyframe overlay circle
   
                 if (options.annotations) {
                   ctx.save();
@@ -136,7 +110,20 @@ console.log('New! dist', results.distFromKeyframe, '/', options.keyframeDistance
                     options.srcHeight);
                 }
                 // draw again on top since it's a keyframe
-                drawImage(img, imgPosX, imgPosY); // consider doing this only if it's non-blurry or something
+                drawImageWithMask(img, imgPosX, imgPosY, ctx, mask, options); // consider doing this only if it's non-blurry or something
+
+                // draw overlay circle
+                labelsCtx.clearRect(0, 0, options.width, options.height);
+                if (lastKeyframe) {
+                  labelsCtx.strokeStyle = "#888";
+                  labelsCtx.beginPath();
+                  labelsCtx.arc(lastKeyframe.x + options.srcWidth/2, lastKeyframe.y + options.srcHeight/2, options.srcWidth/2, 0, Math.PI*2, false);
+                  labelsCtx.stroke();
+                }
+                labelsCtx.strokeStyle = "yellow";
+                labelsCtx.beginPath();
+                labelsCtx.arc(imgPosX + options.srcWidth/2, imgPosY + options.srcHeight/2, options.srcWidth/2, 0, Math.PI*2, false);
+                labelsCtx.stroke();
   
                 // adjust ctx transform matrix and origin point to new keyframe
                 if (options.scaling) baseScale = scale; // save base scale
@@ -148,6 +135,14 @@ console.log('New! dist', results.distFromKeyframe, '/', options.keyframeDistance
                 // adjust to new origin
                 originX += -avgOffset.x + (options.srcWidth / 2);
                 originY += -avgOffset.y + (options.srcHeight / 2);
+
+                lastKeyframe = { x: imgPosX, y: imgPosY };
+              } else if (lastKeyframe && Date.now() - lastKeyframeTime > 2000) {
+                console.log('stuck');
+                labelsCtx.strokeStyle = "orange";
+                labelsCtx.beginPath();
+                labelsCtx.arc(lastKeyframe.x + options.srcWidth/2, lastKeyframe.y + options.srcHeight/2, options.srcWidth/2, 0, Math.PI*2, false);
+                labelsCtx.stroke();
               }
             }
  
@@ -160,29 +155,4 @@ console.log('New! dist', results.distFromKeyframe, '/', options.keyframeDistance
       }
     }
   });
-
-  function drawImage(img, x, y) {
-    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.save();
-    if (options.vignette) {
-      if (options.flipBitX === -1) ctx.translate(options.smallerSrcDimension, 0);
-      if (options.flipBitY === -1) ctx.translate(0, options.smallerSrcDimension);
-      if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
-      // apply circular vignette mask
-      maskCtx.drawImage(img, maskOffset.x, maskOffset.y,
-        options.srcWidth,
-        options.srcHeight);
-  
-      ctx.drawImage(maskCanvas, x, y,
-        options.srcWidth,
-        options.srcHeight);
-    } else {
-      if (options.flipBitX === -1) ctx.translate(options.srcWidth, 0);
-      if (options.flipBitY === -1) ctx.translate(0, options.srcHeight);
-      if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
-      ctx.drawImage(img, x, y,
-        options.srcWidth,
-        options.srcHeight);
-    }
-    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.restore();
-  }
 }
