@@ -38,12 +38,18 @@
         debug: true,
         annotations: false,
         vignette: true,
+       // these three parameters are part of jsfeat's orb matcher
+        match_threshold: 70, // default 48; Defining the rate of change of intensity of the pixels for them to be perceived as "noisy".
+        lap_thres: 30, // default 30; Specifying how similar two pixels should be in order to be perceived as "lying in the same cluster".
+        eigen_thres: 25, // default 25; Specifying matching standards (measure of depth that the match instensity should be in order for it to be a good match).
+
+        trainingMargin: 0, // the width of the margin we discard when training a pattern, to improve matching; as a proportion from 0 to 1
+
         goodMatchesMin: 10, // default 8; frames must have this many good matches to be displayed
         keyframeThreshold: 1.2, // default 2; keyframes must have 2x number of good matches
         keyframeDistanceThreshold: 30, // default 50; keyframes must be this far off of last keyframe origin
         num_train_levels: 1, // default 4; keypoint finder at different zoom levels; not needed if no resizing happens (as in microscopy)
-        //trainingMargin: 0.1, // the width of the margin we discard when training a pattern, to improve matching; as a proportion from 0 to 1
-        trainingMargin: 0, // the width of the margin we discard when training a pattern, to improve matching; as a proportion from 0 to 1
+
         width: 2000,
         height: 2000,
         srcWidth: 640,
@@ -63,6 +69,7 @@
       .toolbar {
         position: fixed;
         bottom: 0;
+        z-index: 999;
         width: 100%;
         height: 50px;
       }
