@@ -42,8 +42,8 @@
         keyframeThreshold: 1.2, // default 2; keyframes must have 2x number of good matches
         keyframeDistanceThreshold: 30, // default 50; keyframes must be this far off of last keyframe origin
         num_train_levels: 1, // default 4; keypoint finder at different zoom levels; not needed if no resizing happens (as in microscopy)
-        //trainingMargin: 0.1, // the width of the margin we discard when training a pattern, to improve matching; as a proportion from 0 to 1
-        trainingMargin: 0, // the width of the margin we discard when training a pattern, to improve matching; as a proportion from 0 to 1
+        blur_size: 1, // default 5; gaussian blur applied to keyframe before training the matcher
+        trainingMargin: 0.1, // the width of the margin we discard when training a pattern, to improve matching; as a proportion from 0 to 1
         width: 2000,
         height: 2000,
         srcWidth: 640,

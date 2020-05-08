@@ -1,9 +1,27 @@
-// refactor this to accept an image/video?
-module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_preview, pattern_descriptors, pattern_corners, ctx, options) {
-  // exposed closure
-  return function train_pattern(newImg) {
+module.exports = function trainPattern(self) {
+  let jsfeat = require('jsfeat');
+  var img_u8;
+
+  self.addEventListener('message', function incomingMessage(request) {
+
+    if (typeof img_u8 === "undefined") img_u8 = new jsfeat.matrix_t(request.data.options.srcWidth, request.data.options.srcHeight, jsfeat.U8_t | jsfeat.C1_t);
+
+    // reply back from this worker to the main thread:
+    self.postMessage(setupTrainPattern(
+      request.data.img_u8_buffer,
+      request.data.pattern_corners,
+      request.data.pattern_preview,
+      request.data.pattern_descriptors,
+      request.data.imageData,
+      request.data.options)); // remember that these values are all cloned, so won't see later changes
+  });
+
+  function setupTrainPattern(img_u8_buffer, pattern_corners, pattern_preview, pattern_descriptors, imageData, options) {
     let detect_keypoints = require('./detectKeypoints.js');
 
+    // try overwriting buffer:
+    img_u8.buffer = img_u8_buffer;
+ 
     var lev=0, i=0;
     var sc = 1.0;
     var max_pattern_size = 512;
@@ -19,28 +37,12 @@ module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_pre
     new_width = (img_u8.cols*sc0)|0;
     new_height = (img_u8.rows*sc0)|0;
 
-    // trainingMargin is the width of the margin we discard when training a pattern; this improves matching for some reason.
-    // It is a proportion (from 0 to 1) of the image dimensions. 
-    options.trainingMargin = options.trainingMargin || 0.1;
+    // to counteract the offset caused by trainingMargin
     var xOffset = options.trainingMargin * options.srcWidth;
     var yOffset = options.trainingMargin * options.srcHeight;
-
-    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.save();
-    if (options.flipBitX === -1) ctx.translate(options.srcWidth, 0);
-    if (options.flipBitY === -1) ctx.translate(0, options.srcHeight);
-    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
-      // draw the image too big, letting margins hang off edges
-      ctx.drawImage(newImg,
-        0, 0,
-        options.srcWidth, options.srcHeight,
-        -xOffset, -yOffset,
-        options.srcWidth + xOffset, options.srcHeight + yOffset); // draw incoming image to canvas
-    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.restore();
-
-    var imageData = ctx.getImageData(0, 0, options.srcWidth, options.srcHeight); // get it as imageData
-
+ 
     // start processing new image
-    jsfeat.imgproc.grayscale(imageData.data, options.srcWidth, options.srcHeight, img_u8);
+    jsfeat.imgproc.grayscale(imageData, options.srcWidth, options.srcHeight, img_u8);
  
     jsfeat.imgproc.resample(img_u8, lev0_img, new_width, new_height);
  
@@ -71,7 +73,7 @@ module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_pre
     jsfeat.orb.describe(lev_img, lev_corners, corners_num, lev_descr);
  
     console.log("train " + lev_img.cols + "x" + lev_img.rows + " points: " + corners_num);
-    
+
     // fix the coordinates due to zoom-in on point finding
     for (i = 0; i < lev_corners.length; ++i) {
       lev_corners[i].x *= 1 / (1 + (options.trainingMargin * 2));
@@ -114,9 +116,11 @@ module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_pre
  
       sc /= sc_inc;
     }
-
+ 
     return {
-      pattern_preview: pattern_preview
+      pattern_corners: pattern_corners,
+      pattern_preview: pattern_preview,
+      pattern_descriptors: pattern_descriptors
     }
   }
-};
+}

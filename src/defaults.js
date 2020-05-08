@@ -1,5 +1,6 @@
 module.exports = function defaults(options) {
   options.goodMatchesMin = options.goodMatchesMin || 8;
+  if (typeof options.trainingMargin !== "number") options.trainingMargin = 0.1;
   options.keyframeThreshold = options.keyframeThreshold || 2;
   options.keyframeDistanceThreshold = options.keyframeDistanceThreshold || 1/3;
   options.annotations = options.annotations === true || false;
