@@ -1,5 +1,6 @@
 module.exports = function detect_keypoints(img, corners, max_allowed) {
   let ic_angle = require('./icAngle.js');
+  if (typeof jsfeat === 'undefined') var jsfeat = require('jsfeat');
 
   // detect features
   var count = jsfeat.yape06.detect(img, corners, 17);

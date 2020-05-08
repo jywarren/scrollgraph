@@ -1,8 +1,11 @@
 "use strict";
 module.exports = function setupMatcher(options) {
 
+  let jsfeat = require('jsfeat');
   let createCanvas = require('./util/createCanvas.js');
   var ctx = createCanvas('workingCanvas', options);
+  var work = require('webworkify');
+  var trainerWorker = work(require('./jsfeat/trainPattern.js'));
 
   options.num_train_levels = options.num_train_levels || 4;
   var canvasWidth, canvasHeight;
@@ -22,6 +25,11 @@ module.exports = function setupMatcher(options) {
   function initialize(videoWidth, videoHeight) {
     canvasWidth  = canvas.width;
     canvasHeight = canvas.height;
+
+    options.blur_size = options.blur_size || 5;
+    options.lap_thres = options.lap_thres || 30;
+    options.eigen_thres = options.eigen_thres || 25;
+    options.match_threshold = options.match_threshold || 48;
  
     // our point match structure
     var match_t = require('./jsfeat/matchStructure.js')();
@@ -46,23 +54,61 @@ module.exports = function setupMatcher(options) {
     // transform matrix
     homo3x3 = new jsfeat.matrix_t(3,3,jsfeat.F32C1_t);
     match_mask = new jsfeat.matrix_t(500,1,jsfeat.U8C1_t);
-
-    options.blur_size = options.blur_size || 5;
-    options.lap_thres = options.lap_thres || 30;
-    options.eigen_thres = options.eigen_thres || 25;
-    options.match_threshold = options.match_threshold || 48;
   }
 
-  function train(img) {
-    let train_pattern = require('./jsfeat/trainPattern.js')(
-      img_u8,
-      pattern_corners,
-      pattern_preview,
-      pattern_descriptors,
-      pattern_corners,
-      ctx,
-      options);
-    pattern_preview = train_pattern(img).pattern_preview;
+  function isTrained() {
+    return typeof pattern_corners !== "undefined" && pattern_corners.length > 0;
+  }
+
+  // Here we try to train the matcher within a web worker, to move it off of the main thread and reduce lag.
+  // That means all values passed into the worker must be cloned and so no longer related to work in this thread.
+  function train(img, callback) {
+
+    trainerWorker.addEventListener('message', function (response) {
+      // copy back the new values:
+      pattern_preview = response.data.pattern_preview;
+      pattern_descriptors = response.data.pattern_descriptors;
+      pattern_corners = response.data.pattern_corners;
+      callback(response.data);
+    });
+
+    // trainingMargin is the width of the margin we discard when training a pattern; this improves matching for some reason.
+    // It is a proportion (from 0 to 1) of the image dimensions. 
+    var xOffset = options.trainingMargin * options.srcWidth;
+    var yOffset = options.trainingMargin * options.srcHeight;
+
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.save();
+    if (options.flipBitX === -1) ctx.translate(options.srcWidth, 0);
+    if (options.flipBitY === -1) ctx.translate(0, options.srcHeight);
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
+      // draw the image too big, letting margins hang off edges
+      ctx.drawImage(img,
+        0, 0,
+        options.srcWidth, options.srcHeight,
+        -xOffset, -yOffset,
+        options.srcWidth + xOffset, options.srcHeight + yOffset); // draw incoming image to canvas
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.restore();
+
+    // we won't be able to send a canvas object but we can send the data:
+    var imageData = ctx.getImageData(0, 0, options.srcWidth, options.srcHeight); // get it as imageData
+
+    // pack up a slimmer and flat (no functions) options object
+    var trainerOptions = {
+      blur_size: options.blur_size,
+      num_train_levels: options.num_train_levels,
+      srcWidth: options.srcWidth,
+      srcHeight: options.srcHeight,
+      trainingMargin: options.trainingMargin
+    }
+ 
+    trainerWorker.postMessage({
+      img_u8_buffer: img_u8.buffer,
+      pattern_preview: pattern_preview,
+      pattern_descriptors: pattern_descriptors,
+      pattern_corners: pattern_corners,
+      imageData: imageData.data,
+      options: trainerOptions
+    }); // send the worker a message
   }
 
   function match(img, offset) {
@@ -131,6 +177,7 @@ module.exports = function setupMatcher(options) {
 
   return {
     train: train,
+    isTrained: isTrained,
     match: match
   }
 

@@ -40,12 +40,13 @@ module.exports = function handleImage(img, options) {
  
     function draw() {
       if (img instanceof Image || img instanceof HTMLVideoElement && img.readyState === img.HAVE_ENOUGH_DATA) {
- 
+
         if (isFirst) {
-          matcher.train(img);
-          drawImageWithMask(img, originX, originY, ctx, mask, options);
+          matcher.train(img, function onTrained(response) {
+            drawImageWithMask(img, originX, originY, ctx, mask, options);
+          });
           isFirst = false;
-        } else {
+        } else if (matcher.isTrained()) {
  
           var results = matcher.match(img);
 
@@ -90,53 +91,58 @@ module.exports = function handleImage(img, options) {
               if (filterKeyframe(results, options, lastKeyframeTime)) {
 console.log('New! dist', results.distFromKeyframe, '/', options.keyframeDistanceThreshold, 'time', Date.now() - lastKeyframeTime)
                 lastKeyframeTime = Date.now();
-                matcher.train(img);
+                matcher.train(img, function onTrained(response) {
 
-                // draw keyframe overlay circle
-  
-                if (options.annotations) {
-                  ctx.save();
-                  ctx.translate(originX, originY);
-                  let render_pattern_shape = require('./jsfeat/renderPatternShape.js'); 
-                  // this draws the position of the original in the image. We may need to invert the matrix to place an image
-//////              render_pattern_shape(ctx, results.projected_corners); // draw a distorted frame
-                  ctx.restore();
-               
-                  ctx.strokeStyle = "yellow";
-                  ctx.strokeRect(
-                    imgPosX,
-                    imgPosY,
-                    options.srcWidth,
-                    options.srcHeight);
-                }
-                // draw again on top since it's a keyframe
-                drawImageWithMask(img, imgPosX, imgPosY, ctx, mask, options); // consider doing this only if it's non-blurry or something
-
-                // draw overlay circle
-                labelsCtx.clearRect(0, 0, options.width, options.height);
-                if (lastKeyframe) {
-                  labelsCtx.strokeStyle = "#888";
+// START POST-KEYFRAME: TODO: move into sep module
+                  // draw keyframe overlay circle
+    
+                  if (options.annotations) {
+                    ctx.save();
+                    ctx.translate(originX, originY);
+                    let render_pattern_shape = require('./jsfeat/renderPatternShape.js'); 
+                    // this draws the position of the original in the image. We may need to invert the matrix to place an image
+////////              render_pattern_shape(ctx, results.projected_corners); // draw a distorted frame
+                    ctx.restore();
+                  
+                    ctx.strokeStyle = "yellow";
+                    ctx.strokeRect(
+                      imgPosX,
+                      imgPosY,
+                      options.srcWidth,
+                      options.srcHeight);
+                  }
+                  // draw again on top since it's a keyframe
+                  drawImageWithMask(img, imgPosX, imgPosY, ctx, mask, options); // consider doing this only if it's non-blurry or something
+                 
+                  // draw overlay circle
+                  labelsCtx.clearRect(0, 0, options.width, options.height);
+                  if (lastKeyframe) {
+                    labelsCtx.strokeStyle = "#888";
+                    labelsCtx.beginPath();
+                    labelsCtx.arc(lastKeyframe.x + options.srcWidth/2, lastKeyframe.y + options.srcHeight/2, options.srcWidth/2, 0, Math.PI*2, false);
+                    labelsCtx.stroke();
+                  }
+                  labelsCtx.strokeStyle = "yellow";
                   labelsCtx.beginPath();
-                  labelsCtx.arc(lastKeyframe.x + options.srcWidth/2, lastKeyframe.y + options.srcHeight/2, options.srcWidth/2, 0, Math.PI*2, false);
+                  labelsCtx.arc(imgPosX + options.srcWidth/2, imgPosY + options.srcHeight/2, options.srcWidth/2, 0, Math.PI*2, false);
                   labelsCtx.stroke();
-                }
-                labelsCtx.strokeStyle = "yellow";
-                labelsCtx.beginPath();
-                labelsCtx.arc(imgPosX + options.srcWidth/2, imgPosY + options.srcHeight/2, options.srcWidth/2, 0, Math.PI*2, false);
-                labelsCtx.stroke();
-  
-                // adjust ctx transform matrix and origin point to new keyframe
-                if (options.scaling) baseScale = scale; // save base scale
-                ctx.translate(imgPosX + (options.srcWidth / 2), 
-                              imgPosY + (options.srcHeight / 2));
-                ctx.rotate(-angleRadians);
-                ctx.translate(-imgPosX - (options.srcWidth / 2), 
-                              -imgPosY - (options.srcHeight / 2));
-                // adjust to new origin
-                originX += -avgOffset.x + (options.srcWidth / 2);
-                originY += -avgOffset.y + (options.srcHeight / 2);
+                 
+                  // adjust ctx transform matrix and origin point to new keyframe
+                  if (options.scaling) baseScale = scale; // save base scale
+                  ctx.translate(imgPosX + (options.srcWidth / 2), 
+                                imgPosY + (options.srcHeight / 2));
+                  ctx.rotate(-angleRadians);
+                  ctx.translate(-imgPosX - (options.srcWidth / 2), 
+                                -imgPosY - (options.srcHeight / 2));
+                  // adjust to new origin
+                  originX += -avgOffset.x + (options.srcWidth / 2);
+                  originY += -avgOffset.y + (options.srcHeight / 2);
+                 
+                  lastKeyframe = { x: imgPosX, y: imgPosY };
 
-                lastKeyframe = { x: imgPosX, y: imgPosY };
+                });
+
+// END POST-KEYFRAME
               } else if (lastKeyframe && Date.now() - lastKeyframeTime > 2000) {
                 console.log('stuck');
                 labelsCtx.strokeStyle = "orange";
@@ -144,6 +150,7 @@ console.log('New! dist', results.distFromKeyframe, '/', options.keyframeDistance
                 labelsCtx.arc(lastKeyframe.x + options.srcWidth/2, lastKeyframe.y + options.srcHeight/2, options.srcWidth/2, 0, Math.PI*2, false);
                 labelsCtx.stroke();
               }
+
             }
  
           }

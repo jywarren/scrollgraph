@@ -28,7 +28,8 @@
     "jquery": "^3.5.0",
     "jsfeat": "~0.0.8",
     "o9n": "^2.1.0",
-    "webgl-utils": "~1.0.0"
+    "webgl-utils": "~1.0.0",
+    "webworkify": "^1.5.0"
   },
   "devDependencies": {
     "babel-core": "7.0.0-beta.3",
