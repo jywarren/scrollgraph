@@ -10,13 +10,15 @@
     <link href="node_modules/font-awesome/css/font-awesome.min.css" rel="stylesheet">
   </head>
   <body>
+    <canvas style="position:absolute;z-index:999;" id="labelsCanvas"></canvas>
     <canvas id="canvas"></canvas>
     <video id="video" style="position:absolute;right:0;top:0;" onClick="$(this).hide();"></video>
-    <canvas id="workingCanvas" width="640" height="480" style="display:none;"></canvas>
+    <canvas id="workingCanvas" style="display:none;"></canvas>
 
     <div class="toolbar">
       <a class="btn btn-lg btn-secondary" onClick="scrollgraph.setOption('annotations', !scrollgraph.getOption('annotations'));">Annotations</a>
       <a class="btn btn-lg btn-secondary" onClick="scrollgraph.train($('video')[0])">Retrain</a>
+      <a class="btn btn-lg btn-secondary" onClick="scrollgraph.setOption('vignette', !scrollgraph.getOption('vignette'));">Vignette</a>
 <!--
       <a class="btn btn-lg btn-secondary" onClick="scrollgraph.setOption('flipBitX', -1*scrollgraph.getOption('flipBitX'));">Flip X</a>
       <a class="btn btn-lg btn-secondary" onClick="scrollgraph.setOption('flipBitY', -1*scrollgraph.getOption('flipBitY'));">Flip Y</a>

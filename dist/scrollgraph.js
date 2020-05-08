@@ -351,37 +351,76 @@ module.exports = function defaults(options) {
 }
 
 },{}],4:[function(require,module,exports){
+module.exports = function drawImageWithMask(img, x, y, ctx, mask, options) {
+  if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.save();
+  if (options.vignette) {
+    if (options.flipBitX === -1) ctx.translate(options.smallerSrcDimension, 0);
+    if (options.flipBitY === -1) ctx.translate(0, options.smallerSrcDimension);
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
+    // apply circular vignette mask
+    mask.ctx.drawImage(img, mask.offset.x, mask.offset.y,
+      options.srcWidth,
+      options.srcHeight);
+
+    ctx.drawImage(mask.canvas, x, y,
+      options.srcWidth,
+      options.srcHeight);
+  } else {
+    if (options.flipBitX === -1) ctx.translate(options.srcWidth, 0);
+    if (options.flipBitY === -1) ctx.translate(0, options.srcHeight);
+    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
+    ctx.drawImage(img, x, y,
+      options.srcWidth,
+      options.srcHeight);
+  }
+  if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.restore();
+}
+
+},{}],5:[function(require,module,exports){
+// be 1.25x more lax if it's been a while since the last match:
+module.exports = function filterFrame(results, options, lastFrame) {
+  return (results.good_matches > options.goodMatchesMin ||
+    Date.now() - lastFrame > 500 && 
+    results.good_matches * 1.25 > options.goodMatchesMin) 
+  && results.projected_corners
+}
+
+},{}],6:[function(require,module,exports){
+// new keyframe if:
+// 1. <keyframeThreshold> more good matches
+// 2. more than options.keyframeDistanceThreshold out from original image position
+// 3. more than 1000ms since last keyframe
+// 4. over 100 points available to match from
+module.exports = function filterKeyframe(results, options, lastKeyframe) {
+  results.distFromKeyframe = parseInt(Math.abs(results.projected_corners[0].x) + Math.abs(results.projected_corners[0].y));
+  return (
+    results.good_matches > options.goodMatchesMin * options.keyframeThreshold && 
+    results.distFromKeyframe > options.keyframeDistanceThreshold && 
+    Date.now() - lastKeyframe > 500 &&
+    results.num_corners > 100
+  )
+}
+
+},{}],7:[function(require,module,exports){
 // maps incoming image to the canvas for scrollgraph program
 module.exports = function handleImage(img, options) {
-  var matcher;
   let createCanvas = require('./util/createCanvas.js'),
+      setupMask = require('./setupMask.js'),
+      drawImageWithMask = require('./drawImageWithMask.js'),
+      filterFrame = require('./filterFrame.js'),
+      filterKeyframe = require('./filterKeyframe.js'),
       util = require('./util/util.js')(options);
-  var ctx = createCanvas('canvas', options);
+  var ctx = createCanvas('canvas', options),
+      labelsCtx = createCanvas('labelsCanvas', options),
+      matcher,
+      mask,
+      maskImg = new Image();
 
-  var maskCtx,
-      maskCanvas,
-      mask = new Image(),
-      maskOffset = { x: 0, y: 0 };
-
-  if (options.srcWidth > options.srcHeight) {
-    maskOffset.x = -(options.srcWidth - options.srcHeight) / 2;
-  } else {
-    maskOffset.y = -(options.srcHeight - options.srcWidth) / 2;
-  }
+  labelsCtx.lineWidth = 4;
 
   return new Promise(function(resolve, reject) { 
-    mask.onload = function maskLoaded() {
-      if (options.vignette) {
-        maskCanvas = document.createElement('CANVAS');
-        maskCanvas.id = 'maskCanvas';
-        maskCanvas.style = 'display:none;';
-        document.body.appendChild(maskCanvas);
-        maskCtx = createCanvas('maskCanvas', { width: options.srcWidth, height: options.srcHeight });
-        maskCtx.globalCompositeOperation = 'destination-in';
-        maskCtx.drawImage(mask, 0, 0, options.smallerSrcDimension, options.smallerSrcDimension);
-        maskCtx.globalCompositeOperation = 'source-in';
-      }
-     
+    maskImg.onload = function maskLoaded() {
+      if (options.vignette) mask = setupMask(options, maskImg); 
       matcher = require('./setupMatcher.js')(options); // initialize matcher
      
       // initiate first frame
@@ -392,38 +431,40 @@ module.exports = function handleImage(img, options) {
         imageHandler: handleImage
       }, matcher));
     }
-    mask.src = 'images/circle.png';
+    maskImg.src = 'images/circle.png';
  
     // start by matching against first
     var isFirst = true,
         originX = (options.width / 2) - (options.srcWidth / 2),
         originY = (options.height / 2) - (options.srcHeight / 2),
-        baseScale = 1
+        baseScale = 1,
         lastFrame = Date.now(),
-        lastKeyframe = Date.now();
+        lastKeyframeTime = Date.now(),
+        lastKeyframe;
  
     function draw() {
       if (img instanceof Image || img instanceof HTMLVideoElement && img.readyState === img.HAVE_ENOUGH_DATA) {
  
         if (isFirst) {
           matcher.train(img);
-          drawImage(img, originX, originY);
+          drawImageWithMask(img, originX, originY, ctx, mask, options);
           isFirst = false;
         } else {
  
           var results = matcher.match(img);
-          // be 1.25x more lax if it's been a while since the last match:
-          if ((results.good_matches > options.goodMatchesMin || Date.now() - lastFrame > 500 && results.good_matches * 1.25 > options.goodMatchesMin) 
-             && results.projected_corners) {
- 
-            lastFrame = Date.now();
-            var avgOffset = util.averageOffsets(results.projected_corners),
-                imgPosX = originX - avgOffset.x + (options.srcWidth / 2),
-                imgPosY = originY - avgOffset.y + (options.srcHeight / 2);
- 
-            var angleRadians = Math.atan2(results.projected_corners[1].y - results.projected_corners[0].y,
+
+// add all these properties into the results object?
+          var avgOffset = util.averageOffsets(results.projected_corners),
+              imgPosX = originX - avgOffset.x + (options.srcWidth / 2),
+              imgPosY = originY - avgOffset.y + (options.srcHeight / 2);
+
+          var angleRadians = Math.atan2(results.projected_corners[1].y - results.projected_corners[0].y,
                                           results.projected_corners[1].x - results.projected_corners[0].x);
- 
+
+          if (filterFrame(results, options, lastFrame)) { 
+            lastFrame = Date.now();
+
+// move these into the filter? 
             // don't allow jumps of
             // 1. > 1.5x the image width/height
             // 2. > 0.25 radians (~15deg)
@@ -442,26 +483,20 @@ module.exports = function handleImage(img, options) {
               ctx.translate(- (options.srcWidth / 2), 
                             - (options.srcHeight / 2));
 
-              drawImage(img, 0, 0);
+              // place non-keyframes behind canvas
+              ctx.globalCompositeOperation = 'destination-over';
+              drawImageWithMask(img, 0, 0, ctx, mask, options);
+              ctx.globalCompositeOperation = 'source-over';
  
               if (options.annotations) results.annotate(ctx, {x: imgPosX, y: imgPosY}); // draw match points
               ctx.restore();
-  
-              // new keyframe if:
-              // 1. <keyframeThreshold> more good matches
-              // 2. more than options.keyframeDistanceThreshold out from original image position
-              // 3. more than 1000ms since last keyframe
-              // 4. over 100 points available to match from
-              results.distFromKeyframe = parseInt(Math.abs(results.projected_corners[0].x) + Math.abs(results.projected_corners[0].y));
-              if (
-                results.good_matches > options.goodMatchesMin * options.keyframeThreshold && 
-                results.distFromKeyframe > options.keyframeDistanceThreshold && 
-                Date.now() - lastKeyframe > 500 &&
-                results.num_corners > 100
-              ) {
-console.log('New! dist', results.distFromKeyframe, '/', options.keyframeDistanceThreshold, 'time', Date.now() - lastKeyframe)
-                lastKeyframe = Date.now();
+
+              if (filterKeyframe(results, options, lastKeyframeTime)) {
+console.log('New! dist', results.distFromKeyframe, '/', options.keyframeDistanceThreshold, 'time', Date.now() - lastKeyframeTime)
+                lastKeyframeTime = Date.now();
                 matcher.train(img);
+
+                // draw keyframe overlay circle
   
                 if (options.annotations) {
                   ctx.save();
@@ -478,6 +513,21 @@ console.log('New! dist', results.distFromKeyframe, '/', options.keyframeDistance
                     options.srcWidth,
                     options.srcHeight);
                 }
+                // draw again on top since it's a keyframe
+                drawImageWithMask(img, imgPosX, imgPosY, ctx, mask, options); // consider doing this only if it's non-blurry or something
+
+                // draw overlay circle
+                labelsCtx.clearRect(0, 0, options.width, options.height);
+                if (lastKeyframe) {
+                  labelsCtx.strokeStyle = "#888";
+                  labelsCtx.beginPath();
+                  labelsCtx.arc(lastKeyframe.x + options.srcWidth/2, lastKeyframe.y + options.srcHeight/2, options.srcWidth/2, 0, Math.PI*2, false);
+                  labelsCtx.stroke();
+                }
+                labelsCtx.strokeStyle = "yellow";
+                labelsCtx.beginPath();
+                labelsCtx.arc(imgPosX + options.srcWidth/2, imgPosY + options.srcHeight/2, options.srcWidth/2, 0, Math.PI*2, false);
+                labelsCtx.stroke();
   
                 // adjust ctx transform matrix and origin point to new keyframe
                 if (options.scaling) baseScale = scale; // save base scale
@@ -489,6 +539,14 @@ console.log('New! dist', results.distFromKeyframe, '/', options.keyframeDistance
                 // adjust to new origin
                 originX += -avgOffset.x + (options.srcWidth / 2);
                 originY += -avgOffset.y + (options.srcHeight / 2);
+
+                lastKeyframe = { x: imgPosX, y: imgPosY };
+              } else if (lastKeyframe && Date.now() - lastKeyframeTime > 2000) {
+                console.log('stuck');
+                labelsCtx.strokeStyle = "orange";
+                labelsCtx.beginPath();
+                labelsCtx.arc(lastKeyframe.x + options.srcWidth/2, lastKeyframe.y + options.srcHeight/2, options.srcWidth/2, 0, Math.PI*2, false);
+                labelsCtx.stroke();
               }
             }
  
@@ -501,34 +559,9 @@ console.log('New! dist', results.distFromKeyframe, '/', options.keyframeDistance
       }
     }
   });
-
-  function drawImage(img, x, y) {
-    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.save();
-    if (options.vignette) {
-      if (options.flipBitX === -1) ctx.translate(options.smallerSrcDimension, 0);
-      if (options.flipBitY === -1) ctx.translate(0, options.smallerSrcDimension);
-      if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
-      // apply circular vignette mask
-      maskCtx.drawImage(img, maskOffset.x, maskOffset.y,
-        options.srcWidth,
-        options.srcHeight);
-  
-      ctx.drawImage(maskCanvas, x, y,
-        options.srcWidth,
-        options.srcHeight);
-    } else {
-      if (options.flipBitX === -1) ctx.translate(options.srcWidth, 0);
-      if (options.flipBitY === -1) ctx.translate(0, options.srcHeight);
-      if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.scale(options.flipBitX, options.flipBitY);
-      ctx.drawImage(img, x, y,
-        options.srcWidth,
-        options.srcHeight);
-    }
-    if (options.flipBitX !== 1 || options.flipBitY !== 1) ctx.restore();
-  }
 }
 
-},{"./jsfeat/renderPatternShape.js":14,"./setupMatcher.js":18,"./util/createCanvas.js":20,"./util/util.js":21}],5:[function(require,module,exports){
+},{"./drawImageWithMask.js":4,"./filterFrame.js":5,"./filterKeyframe.js":6,"./jsfeat/renderPatternShape.js":17,"./setupMask.js":21,"./setupMatcher.js":22,"./util/createCanvas.js":24,"./util/util.js":25}],8:[function(require,module,exports){
 module.exports = function annotate_image(ctx, imageData, matches, num_matches, num_corners, good_matches, screen_corners, pattern_corners, shape_pts, pattern_preview, match_mask, offset, options) {
   offset = offset || {x: 0, y:0};
   let render_corners = require('./renderCorners.js'); 
@@ -559,7 +592,7 @@ module.exports = function annotate_image(ctx, imageData, matches, num_matches, n
 //  }
 }
 
-},{"./renderCorners.js":12,"./renderMatches.js":13,"./renderPatternShape.js":14}],6:[function(require,module,exports){
+},{"./renderCorners.js":15,"./renderMatches.js":16,"./renderPatternShape.js":17}],9:[function(require,module,exports){
 module.exports = function detect_keypoints(img, corners, max_allowed) {
   let ic_angle = require('./icAngle.js');
 
@@ -580,7 +613,7 @@ module.exports = function detect_keypoints(img, corners, max_allowed) {
   return count;
 }
 
-},{"./icAngle.js":8}],7:[function(require,module,exports){
+},{"./icAngle.js":11}],10:[function(require,module,exports){
 // estimate homography transform between matched points
 module.exports = function find_transform(matches, count, screen_corners, pattern_corners, homo3x3, match_mask) {
   // motion kernel
@@ -629,7 +662,7 @@ module.exports = function find_transform(matches, count, screen_corners, pattern
   return good_cnt;
 }
 
-},{}],8:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 // central difference using image moments to find dominant orientation
 var u_max = new Int32Array([15,15,15,15,14,14,14,13,13,12,11,10,9,8,6,3,0]);
 module.exports = function ic_angle(img, px, py) {
@@ -660,7 +693,7 @@ module.exports = function ic_angle(img, px, py) {
   return Math.atan2(m_01, m_10);
 }
 
-},{}],9:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 // naive brute-force matching.
 // each on screen point is compared to all pattern points
 // to find the closest match
@@ -730,7 +763,7 @@ module.exports = function match_pattern(screen_descriptors, pattern_descriptors,
   return num_matches;
 }
 
-},{"./popcnt32.js":11}],10:[function(require,module,exports){
+},{"./popcnt32.js":14}],13:[function(require,module,exports){
 module.exports = (function () {
   function match_t(screen_idx, pattern_lev, pattern_idx, distance) {
     if (typeof screen_idx === "undefined") { screen_idx=0; }
@@ -746,7 +779,7 @@ module.exports = (function () {
   return match_t;
 })
 
-},{}],11:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 // non zero bits count
 module.exports = function popcnt32(n) {
   n -= ((n >> 1) & 0x55555555);
@@ -754,7 +787,7 @@ module.exports = function popcnt32(n) {
   return (((n + (n >> 4))& 0xF0F0F0F)* 0x1010101) >> 24;
 }
 
-},{}],12:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 // draws tiny +s on the canvas where there are corners
 module.exports = function render_corners(corners, count, img, step) {
   var pix = (0xff << 24) | (0x00 << 16) | (0xff << 8) | 0x00;
@@ -770,7 +803,7 @@ module.exports = function render_corners(corners, count, img, step) {
   }
 }
 
-},{}],13:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 module.exports = function render_matches(ctx, matches, count, screen_corners, pattern_corners, match_mask) {
   for(var i = 0; i < count; ++i) {
     var m = matches[i];
@@ -789,7 +822,7 @@ module.exports = function render_matches(ctx, matches, count, screen_corners, pa
   }
 }
 
-},{}],14:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 module.exports = function render_pattern_shape(ctx, shape_pts) {
   ctx.strokeStyle = "rgb(0,255,0)";
   ctx.beginPath();
@@ -804,7 +837,7 @@ module.exports = function render_pattern_shape(ctx, shape_pts) {
   ctx.stroke();
 }
 
-},{}],15:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 // project/transform rectangle corners with 3x3 Matrix
 module.exports = function tCorners(M, w, h) {
   var pt = [ {'x':0,'y':0}, {'x':w,'y':0}, {'x':w,'y':h}, {'x':0,'y':h} ];
@@ -821,7 +854,7 @@ module.exports = function tCorners(M, w, h) {
   return pt;
 }
 
-},{}],16:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 // refactor this to accept an image/video?
 module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_preview, pattern_descriptors, pattern_corners, ctx, options) {
   // exposed closure
@@ -945,7 +978,7 @@ module.exports = function setupTrainPattern(img_u8, pattern_corners, pattern_pre
   }
 };
 
-},{"./detectKeypoints.js":6}],17:[function(require,module,exports){
+},{"./detectKeypoints.js":9}],20:[function(require,module,exports){
 Scrollgraph = function Scrollgraph(options) {
   options = require('./defaults.js')(options);
   options.imageHandler = options.imageHandler || require('./handleImage.js'); // allow overriding
@@ -988,7 +1021,33 @@ Scrollgraph = function Scrollgraph(options) {
 
 }
 
-},{"./defaults.js":3,"./handleImage.js":4,"./setupVideo.js":19,"o9n":1}],18:[function(require,module,exports){
+},{"./defaults.js":3,"./handleImage.js":7,"./setupVideo.js":23,"o9n":1}],21:[function(require,module,exports){
+module.exports = function setupMask(options, maskImg) {
+  let createCanvas = require('./util/createCanvas.js');
+  var maskCanvas = document.createElement('CANVAS');
+  maskCanvas.id = 'maskCanvas';
+  maskCanvas.style = 'display:none;';
+  document.body.appendChild(maskCanvas);
+  var maskCtx = createCanvas('maskCanvas', { width: options.srcWidth, height: options.srcHeight });
+  maskCtx.fillStyle = "black";
+  maskCtx.fillRect(0, 0, options.srcWidth, options.srcHeight);
+  maskCtx.globalCompositeOperation = 'destination-in';
+  maskCtx.drawImage(maskImg, 0, 0, options.smallerSrcDimension, options.smallerSrcDimension);
+  maskCtx.globalCompositeOperation = 'source-in';
+  var maskOffset = { x: 0, y: 0 };
+  if (options.srcWidth > options.srcHeight) {
+    maskOffset.x = -(options.srcWidth - options.srcHeight) / 2;
+  } else {
+    maskOffset.y = -(options.srcHeight - options.srcWidth) / 2;
+  }
+  return {
+    ctx: maskCtx,
+    canvas: maskCanvas,
+    offset: maskOffset
+  }
+}
+
+},{"./util/createCanvas.js":24}],22:[function(require,module,exports){
 "use strict";
 module.exports = function setupMatcher(options) {
 
@@ -1127,7 +1186,7 @@ module.exports = function setupMatcher(options) {
 
 }
 
-},{"./jsfeat/annotateImage.js":5,"./jsfeat/detectKeypoints.js":6,"./jsfeat/findTransform.js":7,"./jsfeat/icAngle.js":8,"./jsfeat/matchPattern.js":9,"./jsfeat/matchStructure.js":10,"./jsfeat/tCorners.js":15,"./jsfeat/trainPattern.js":16,"./util/createCanvas.js":20}],19:[function(require,module,exports){
+},{"./jsfeat/annotateImage.js":8,"./jsfeat/detectKeypoints.js":9,"./jsfeat/findTransform.js":10,"./jsfeat/icAngle.js":11,"./jsfeat/matchPattern.js":12,"./jsfeat/matchStructure.js":13,"./jsfeat/tCorners.js":18,"./jsfeat/trainPattern.js":19,"./util/createCanvas.js":24}],23:[function(require,module,exports){
 module.exports = function setupWebcam(options) {
   options.camera = options.camera || { audio: false, video: { 
     width: options.srcWidth,
@@ -1168,7 +1227,7 @@ function connectWebcam(video, options, resolve) {
   .catch(function(err) { console.log(err.name + ": " + err.message); }); // always check for errors at the end.
 }
 
-},{}],20:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 module.exports = function createCanvas(id, options) {
   var ctx, canvas, height, width;
   id = id || "canvas";
@@ -1190,12 +1249,10 @@ module.exports = function createCanvas(id, options) {
   $(canvas).css('position', 'absolute');
   $(canvas).css('transform-origin', 'top left');
   $(canvas).css('transform', 'scale(' + scale + ')');
-  ctx.fillStyle = '#000'; // background
-  ctx.fillRect(0, 0, options.width, options.height);
   return ctx;
 }
 
-},{}],21:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 module.exports = function util(options) {
 
   // https://www.pentarem.com/blog/how-to-use-settimeout-with-async-await-in-javascript/
@@ -1267,4 +1324,4 @@ module.exports = function util(options) {
   }
 }
 
-},{}]},{},[3,4,17,18,19,2,5,6,7,8,9,10,11,12,13,14,15,16,20,21]);
+},{}]},{},[3,4,5,6,7,20,21,22,23,2,8,9,10,11,12,13,14,15,16,17,18,19,24,25]);
